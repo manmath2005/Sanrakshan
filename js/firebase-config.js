@@ -23,4 +23,4 @@ export const firebaseConfig = {
 
 // Production Vercel URL — update after deploying to Vercel
 // The APK should use this URL in its "Server URL" field.
-export const VERCEL_API_BASE = "https://smart-helmet-tracker.vercel.app";
+export const VERCEL_API_BASE = window.location.origin;
