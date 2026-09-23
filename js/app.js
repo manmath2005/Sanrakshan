@@ -4,6 +4,10 @@
  * Free Leaflet OpenStreetMap Engine, Remote Sensitivity Sliders & Emergency SOS.
  */
 
+// Initialize Vercel Web Analytics
+import { inject } from '../node_modules/@vercel/analytics/dist/index.mjs';
+inject();
+
 import { initMap, updateRiderLocation, centerOnRider, toggleTrail, switchBasemap, toggleTraffic } from './map-tracker.js';
 import { updateTelemetry, renderSosHistoryList } from './telemetry-hud.js';
 import { initSafetyControls, triggerEmergencyAlert, dismissEmergencyAlert } from './safety-controls.js';
