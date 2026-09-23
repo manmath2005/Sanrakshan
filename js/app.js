@@ -237,8 +237,6 @@ document.addEventListener('DOMContentLoaded', () => {
         syncManager.publishTelemetry(payload, getRiderProfile(currentRideId));
       });
       if (started) showToast('Broadcasting live phone GPS location...');
-    } );
-      showToast('Demo Simulator active: Driving virtual route...');
     }
   }
 
@@ -248,3 +246,5 @@ document.addEventListener('DOMContentLoaded', () => {
 
   
 
+
+});
