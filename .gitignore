@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+firebase-service-account.json
+
+# Vercel build output
+.vercel/
+.output/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Large binary files — distribute APK via GitHub Releases or keep in downloads/
+# downloads/*.apk  ← keep APK in repo for direct download link
+
+# Python cache (local development)
+__pycache__/
+*.pyc
+server.py
+verify_sync.py
+
+# ngrok binary (not needed in cloud)
+ngrok.exe
+*.ngrok.*
+
+# Other local-only files
+xampp/
+php-portable/
+prisma/
