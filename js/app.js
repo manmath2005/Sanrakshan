@@ -9,7 +9,7 @@ import { updateTelemetry, renderSosHistoryList } from './telemetry-hud.js';
 import { initSafetyControls, triggerEmergencyAlert, dismissEmergencyAlert } from './safety-controls.js';
 import { syncManager } from './firebase-sync.js';
 import { startPhoneGpsBroadcaster, stopPhoneGpsBroadcaster } from './phone-transmitter.js';
-import { startRideSimulator, stopRideSimulator } from './simulator.js';
+
 
 // Application State
 let currentRideId = '';
@@ -201,22 +201,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // 9. Mode Switcher (Viewer / Phone GPS / Demo Simulator)
   const btnViewer = document.getElementById('mode-viewer');
   const btnTransmitter = document.getElementById('mode-transmitter');
-  const btnSimulator = document.getElementById('mode-simulator');
+  
 
   function setMode(mode) {
     currentMode = mode;
-    [btnViewer, btnTransmitter, btnSimulator].forEach(b => {
+    [btnViewer, btnTransmitter].forEach(b => {
       b.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1';
     });
 
     if (mode === 'viewer') {
       btnViewer.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
       stopPhoneGpsBroadcaster();
-      stopRideSimulator();
+      
       showToast('Viewer Mode: Listening for live bike data...');
     } else if (mode === 'transmitter') {
       btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
-      stopRideSimulator();
+      
       const started = startPhoneGpsBroadcaster((phoneLoc) => {
         const payload = {
           timestamp: phoneLoc.timestamp,
@@ -237,77 +237,14 @@ document.addEventListener('DOMContentLoaded', () => {
         syncManager.publishTelemetry(payload, getRiderProfile(currentRideId));
       });
       if (started) showToast('Broadcasting live phone GPS location...');
-    } else if (mode === 'simulator') {
-      btnSimulator.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
-      stopPhoneGpsBroadcaster();
-      startRideSimulator((simPayload) => {
-        syncManager.publishTelemetry(simPayload, getRiderProfile(currentRideId));
-      });
+    } );
       showToast('Demo Simulator active: Driving virtual route...');
     }
   }
 
   btnViewer.addEventListener('click', () => setMode('viewer'));
   btnTransmitter.addEventListener('click', () => setMode('transmitter'));
-  btnSimulator.addEventListener('click', () => setMode('simulator'));
+  
 
-  // 10. Test Crash & SOS Trigger Buttons
-  document.getElementById('btn-trigger-crash').addEventListener('click', () => {
-    const curLoc = latestTelemetry ? latestTelemetry.location : { latitude: 18.4529, longitude: 73.8553, speedKmph: 45, accuracyMeters: 3, heading: 45 };
-    const crashPayload = {
-      timestamp: Date.now(),
-      location: curLoc,
-      sensors: {
-        helmetWorn: true,
-        alcoholAdc: 420,
-        alcoholStatus: 'SAFE',
-        gForceX: 2.8,
-        gForceY: 3.4,
-        gForceZ: 1.2,
-        totalG: 4.56,
-        vibrationLevel: 'CRASH',
-        ignitionRelay: false
-      },
-      alerts: {
-        isCrashDetected: true,
-        isManualSosActive: false,
-        sosCountdownRemaining: 10
-      }
-    };
-    syncManager.publishTelemetry(crashPayload, getRiderProfile(currentRideId));
-  });
-
-  document.getElementById('btn-trigger-sos').addEventListener('click', () => {
-    const curLoc = latestTelemetry ? latestTelemetry.location : { latitude: 18.4529, longitude: 73.8553, speedKmph: 0, accuracyMeters: 3, heading: 0 };
-    const sosPayload = {
-      timestamp: Date.now(),
-      location: curLoc,
-      sensors: {
-        helmetWorn: true,
-        alcoholAdc: 420,
-        alcoholStatus: 'SAFE',
-        gForceX: 0.1,
-        gForceY: 0.98,
-        gForceZ: 0.05,
-        totalG: 1.02,
-        vibrationLevel: 'NORMAL',
-        ignitionRelay: false
-      },
-      alerts: {
-        isCrashDetected: false,
-        isManualSosActive: true,
-        sosCountdownRemaining: 10
-      }
-    };
-    syncManager.publishTelemetry(sosPayload, getRiderProfile(currentRideId));
-  });
-
-  document.getElementById('btn-dismiss-sos').addEventListener('click', () => {
-    dismissEmergencyAlert();
-    showToast('Emergency alert dismissed.');
-  });
-
-  // Start in Viewer mode to listen for live APK telemetry and crash coordinates
-  setMode('viewer');
-});
+  
 
