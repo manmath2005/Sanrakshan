@@ -19,13 +19,18 @@ export function updateTelemetry(telemetry, riderProfile) {
   }
 
   // 2. Synced Contacts List
-  if (riderProfile && riderProfile.emergencyContacts && riderProfile.emergencyContacts.length > 0) {
+  let contacts = (riderProfile && riderProfile.emergencyContacts) || [];
+  if (contacts.length === 0 && telemetry.emergencyContact) {
+    contacts = [{name: 'Emergency Contact', phone: telemetry.emergencyContact, isPrimary: true}];
+  }
+
+  if (contacts && contacts.length > 0) {
     const container = document.getElementById('contacts-list-container');
     if (container) {
-      container.innerHTML = riderProfile.emergencyContacts.map(c => `
+      container.innerHTML = contacts.map(c => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border ${c.isPrimary ? 'border-cyan-500/40 bg-cyan-950/20' : 'border-slate-800'}">
           <div>
-            <div class="text-slate-200 font-bold text-[11px]">${c.isPrimary ? '⭐ [PRIMARY] ' : ''}${c.name} (${c.relation || 'Contact'})</div>
+            <div class="text-slate-200 font-bold text-[11px]">${c.isPrimary ? '⭐ [PRIMARY] ' : ''}${c.name || 'Contact'}</div>
             <div class="text-[10px] text-slate-400 font-mono">${c.phone}</div>
           </div>
           <a href="tel:${c.phone}" class="px-2 py-1 rounded bg-emerald-600/30 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
