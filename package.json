@@ -1,0 +1,18 @@
+{
+  "name": "smart-helmet-tracker",
+  "version": "1.0.0",
+  "description": "Real-time Smart Helmet IoT GPS tracking dashboard with Firebase Realtime Database",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx http-server . -p 3000 --cors",
+    "build": "echo Static site — no build needed"
+  },
+  "dependencies": {
+    "firebase": "^10.14.0",
+    "firebase-admin": "^12.7.0"
+  },
+  "engines": {
+    "node": ">=18.x"
+  }
+}
