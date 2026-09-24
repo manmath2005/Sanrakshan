@@ -2,14 +2,59 @@
   "version": 2,
   "framework": null,
   "outputDirectory": ".",
-  "rewrites": [
+  "functions": {
+    "api/*.js": {
+      "runtime": "@vercel/node@3"
+    }
+  },
+  "routes": [
     {
-      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|apk|woff|woff2|ttf))",
-      "destination": "/$1"
+      "src": "/api/telemetry",
+      "methods": ["OPTIONS"],
+      "dest": "/api/telemetry.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization"
+      }
     },
     {
-      "source": "/(?!api/.*)(.*)",
-      "destination": "/index.html"
+      "src": "/api/sos-history",
+      "methods": ["OPTIONS"],
+      "dest": "/api/sos-history.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+      }
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/downloads/(.*)",
+      "dest": "/downloads/$1"
+    },
+    {
+      "src": "/js/(.*)",
+      "dest": "/js/$1"
+    },
+    {
+      "src": "/css/(.*)",
+      "dest": "/css/$1"
+    },
+    {
+      "src": "/img/(.*)",
+      "dest": "/img/$1"
+    },
+    {
+      "src": "/(.*\\.(png|jpg|jpeg|gif|ico|svg|apk|woff|woff2|ttf))",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ],
   "headers": [
