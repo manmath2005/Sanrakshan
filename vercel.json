@@ -1,16 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/telemetry.js": {
-      "runtime": "@vercel/node@3"
-    },
-    "api/sos-history.js": {
-      "runtime": "@vercel/node@3"
-    }
-  },
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ],
   "headers": [
     {
       "source": "/api/(.*)",

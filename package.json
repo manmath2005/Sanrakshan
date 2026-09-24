@@ -5,8 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx http-server . -p 3000 --cors",
-    "build": "echo Static site — no build needed"
+    "dev": "npx http-server . -p 3000 --cors"
   },
   "dependencies": {
     "firebase": "^10.14.0",

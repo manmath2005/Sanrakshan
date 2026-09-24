@@ -1,5 +1,5 @@
-// Vercel Serverless Function: POST /api/telemetry
-// Receives live GPS + sensor data from Smart Helmet Android APK over the internet.
+// Vercel Serverless Function: /api/telemetry
+// Receives live GPS + sensor data from Smart Helmet Android APK.
 // Writes to Firebase Realtime Database so the web dashboard updates in real-time.
 
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
@@ -69,7 +69,6 @@ export default async function handler(req, res) {
           type: alerts.isCrashDetected ? 'CRASH_ACCIDENT' : 'MANUAL_SOS',
           contacts: payload.emergencyContacts || []
         };
-        // Push generates a unique key for each SOS event
         await sosRef.push(sosRecord);
       }
 
