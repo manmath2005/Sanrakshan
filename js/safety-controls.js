@@ -44,11 +44,13 @@ export function initSafetyControls(onConfigChange) {
 
   function updateSensitivity(val) {
     const num = parseFloat(val).toFixed(1);
-    slider.value = num;
-    sliderVal.textContent = `${num} G`;
+    if (slider) slider.value = num;
+    if (sliderVal) sliderVal.textContent = `${num} G`;
 
-    syncPill.textContent = 'Saving...';
-    syncPill.className = 'text-[9px] font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded-full border border-amber-700';
+    if (syncPill) {
+      syncPill.textContent = 'Saving...';
+      syncPill.className = 'text-[9px] font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded-full border border-amber-700';
+    }
 
     if (onConfigChange) {
       onConfigChange({
@@ -59,18 +61,22 @@ export function initSafetyControls(onConfigChange) {
     }
 
     setTimeout(() => {
-      syncPill.textContent = 'Synced to Bike';
-      syncPill.className = 'text-[9px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-700';
+      if (syncPill) {
+        syncPill.textContent = 'Synced to Bike';
+        syncPill.className = 'text-[9px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-700';
+      }
     }, 400);
   }
 
-  slider.addEventListener('input', (e) => {
-    sliderVal.textContent = `${parseFloat(e.target.value).toFixed(1)} G`;
-  });
+  if (slider) {
+    slider.addEventListener('input', (e) => {
+      if (sliderVal) sliderVal.textContent = `${parseFloat(e.target.value).toFixed(1)} G`;
+    });
 
-  slider.addEventListener('change', (e) => {
-    updateSensitivity(e.target.value);
-  });
+    slider.addEventListener('change', (e) => {
+      updateSensitivity(e.target.value);
+    });
+  }
 
   presetBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -82,6 +88,9 @@ export function initSafetyControls(onConfigChange) {
 
 export function triggerEmergencyAlert(alertData) {
   const modal = document.getElementById('sos-modal');
+  if (!modal) return;
+  const isAlreadyOpen = !modal.classList.contains('hidden');
+
   const title = document.getElementById('sos-title');
   const subtitle = document.getElementById('sos-subtitle');
   const coords = document.getElementById('sos-coords');
@@ -91,17 +100,20 @@ export function triggerEmergencyAlert(alertData) {
   const callLink = document.getElementById('sos-call-link');
 
   modal.classList.remove('hidden');
-  playAlarmChime();
+
+  if (!isAlreadyOpen) {
+    playAlarmChime();
+  }
 
   const isCrash = alertData.type === 'crash' || alertData.isCrashDetected;
-  title.textContent = isCrash ? '🚨 CRASH IMPACT DETECTED!' : '🆘 MANUAL SOS BUTTON PRESSED!';
-  subtitle.textContent = isCrash 
+  if (title) title.textContent = isCrash ? '🚨 CRASH IMPACT DETECTED!' : '🆘 MANUAL SOS BUTTON PRESSED!';
+  if (subtitle) subtitle.textContent = isCrash 
     ? 'High G-force impact detected on rider helmet MPU sensor'
     : 'Rider triggered emergency SOS alert directly from helmet switch';
 
   if (coords && alertData.latitude && alertData.longitude) {
     coords.textContent = `${alertData.latitude.toFixed(5)}° N, ${alertData.longitude.toFixed(5)}° E`;
-    gmapsLink.href = `https://www.google.com/maps/dir/?api=1&destination=${alertData.latitude},${alertData.longitude}`;
+    if (gmapsLink) gmapsLink.href = `https://www.google.com/maps/dir/?api=1&destination=${alertData.latitude},${alertData.longitude}`;
   }
 
   if (force) {
@@ -112,26 +124,37 @@ export function triggerEmergencyAlert(alertData) {
     callLink.href = `tel:${alertData.emergencyContact}`;
   }
 
-  // 10s Cancellation Countdown
-  let remaining = alertData.sosCountdownRemaining || 10;
-  if (sosInterval) clearInterval(sosInterval);
+  if (!isAlreadyOpen) {
+    // 10s Cancellation Countdown
+    let remaining = alertData.sosCountdownRemaining || 10;
+    if (sosInterval) clearInterval(sosInterval);
 
-  countdown.textContent = `Auto-Dispatching in ${remaining}s`;
-  sosInterval = setInterval(() => {
-    remaining -= 1;
-    if (remaining > 0) {
+    if (countdown) {
       countdown.textContent = `Auto-Dispatching in ${remaining}s`;
-      playAlarmChime();
-    } else {
-      countdown.textContent = 'EMERGENCY DISPATCHED TO SERVICES';
-      countdown.className = 'font-mono font-bold text-red-400 bg-red-950 px-2 py-0.5 rounded border border-red-500 animate-pulse';
-      clearInterval(sosInterval);
+      countdown.className = 'font-mono font-bold text-white px-2 py-0.5 rounded bg-red-950 border border-red-700/50';
     }
-  }, 1000);
+    sosInterval = setInterval(() => {
+      remaining -= 1;
+      if (remaining > 0) {
+        if (countdown) countdown.textContent = `Auto-Dispatching in ${remaining}s`;
+        playAlarmChime();
+      } else {
+        if (countdown) {
+          countdown.textContent = 'EMERGENCY DISPATCHED TO SERVICES';
+          countdown.className = 'font-mono font-bold text-red-400 bg-red-950 px-2 py-0.5 rounded border border-red-500 animate-pulse';
+        }
+        clearInterval(sosInterval);
+        sosInterval = null;
+      }
+    }, 1000);
+  }
 }
 
 export function dismissEmergencyAlert() {
   const modal = document.getElementById('sos-modal');
-  modal.classList.add('hidden');
-  if (sosInterval) clearInterval(sosInterval);
+  if (modal) modal.classList.add('hidden');
+  if (sosInterval) {
+    clearInterval(sosInterval);
+    sosInterval = null;
+  }
 }

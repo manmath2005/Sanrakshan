@@ -10,11 +10,11 @@ import { initSafetyControls, triggerEmergencyAlert, dismissEmergencyAlert } from
 import { syncManager } from './firebase-sync.js';
 import { startPhoneGpsBroadcaster, stopPhoneGpsBroadcaster } from './phone-transmitter.js';
 
-
 // Application State
 let currentRideId = '';
 let currentMode = 'viewer'; // 'viewer' | 'transmitter' | 'simulator'
 let latestTelemetry = null;
+let dismissedAlertTimestamp = parseInt(sessionStorage.getItem('smart_helmet_dismissed_alert_ts') || '0', 10);
 
 // Rider Database Records (Mock/Cloud)
 const riderProfiles = {
@@ -50,21 +50,29 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
   // 1. Update Map
   const loc = telemetry.location;
   const isEmergency = telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive);
-  updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
+  if (loc && loc.latitude && loc.longitude) {
+    updateRiderLocation(loc.latitude, loc.longitude, loc.heading || 0, loc.accuracyMeters || 5, loc.speedKmph || 0, isEmergency);
+  }
 
   // 2. Update HUD
   const activeProfile = riderInfo || getRiderProfile(currentRideId);
   updateTelemetry(telemetry, activeProfile);
 
-  // 3. Handle Emergency Alerts
+  // 3. Handle Emergency Alerts (only if not already dismissed by user)
   if (isEmergency) {
-    triggerEmergencyAlert({
-      ...telemetry.alerts,
-      latitude: loc.latitude,
-      longitude: loc.longitude,
-      totalG: telemetry.sensors.totalG,
-      emergencyContact: activeProfile.emergencyContact
-    });
+    const alertTs = telemetry.timestamp || telemetry.serverTimestamp || Date.now();
+    if (alertTs > dismissedAlertTimestamp) {
+      triggerEmergencyAlert({
+        ...telemetry.alerts,
+        latitude: loc ? loc.latitude : undefined,
+        longitude: loc ? loc.longitude : undefined,
+        totalG: (telemetry.sensors && telemetry.sensors.totalG) || 0,
+        emergencyContact: activeProfile.emergencyContact
+      });
+    }
+  } else {
+    // Normal telemetry received: hide modal if open
+    dismissEmergencyAlert();
   }
 }
 
@@ -77,10 +85,12 @@ function unlockDashboard(rideId) {
   window.history.pushState({ path: newUrl }, '', newUrl);
 
   // Update Badge
-  document.getElementById('active-ride-badge').textContent = currentRideId;
+  const badge = document.getElementById('active-ride-badge');
+  if (badge) badge.textContent = currentRideId;
 
   // Hide Login Gate
-  document.getElementById('login-gate-modal').classList.add('hidden');
+  const modal = document.getElementById('login-gate-modal');
+  if (modal) modal.classList.add('hidden');
 
   // Initialize Firebase sync for this specific Rider ID
   syncManager.init(currentRideId);
@@ -91,8 +101,10 @@ function unlockDashboard(rideId) {
 function lockDashboard() {
   localStorage.removeItem('smart_helmet_ride_id');
   currentRideId = '';
-  document.getElementById('login-gate-modal').classList.remove('hidden');
-  document.getElementById('gate-ride-id-input').value = '';
+  const modal = document.getElementById('login-gate-modal');
+  if (modal) modal.classList.remove('hidden');
+  const input = document.getElementById('gate-ride-id-input');
+  if (input) input.value = '';
   showToast('Logged out of tracking session.');
 }
 
@@ -121,45 +133,79 @@ document.addEventListener('DOMContentLoaded', () => {
     unlockDashboard(storedRide);
   } else {
     // Show Login Gate
-    document.getElementById('login-gate-modal').classList.remove('hidden');
+    const modal = document.getElementById('login-gate-modal');
+    if (modal) modal.classList.remove('hidden');
   }
 
   // 5. Login Gate Form Submission
   const loginForm = document.getElementById('login-form');
   const gateInput = document.getElementById('gate-ride-id-input');
 
-  loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const val = gateInput.value.trim();
-    if (val) {
-      unlockDashboard(val);
-    }
-  });
+  if (loginForm && gateInput) {
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = gateInput.value.trim();
+      if (val) {
+        unlockDashboard(val);
+      }
+    });
+  }
 
   // Quick Demo Buttons on Login Gate
   document.querySelectorAll('.quick-id-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const val = btn.getAttribute('data-id');
-      gateInput.value = val;
+      if (gateInput) gateInput.value = val;
       unlockDashboard(val);
     });
   });
 
+  // 5b. Dismiss Emergency Alert Modal Button
+  const btnDismissSos = document.getElementById('btn-dismiss-sos');
+  if (btnDismissSos) {
+    btnDismissSos.addEventListener('click', () => {
+      dismissEmergencyAlert();
+      const currentTs = (latestTelemetry && (latestTelemetry.timestamp || latestTelemetry.serverTimestamp)) || Date.now();
+      dismissedAlertTimestamp = currentTs;
+      sessionStorage.setItem('smart_helmet_dismissed_alert_ts', currentTs.toString());
+
+      // Update Firebase & server to clear active crash status
+      if (currentRideId && latestTelemetry) {
+        const clearedPayload = {
+          ...latestTelemetry,
+          alerts: {
+            ...(latestTelemetry.alerts || {}),
+            isCrashDetected: false,
+            isManualSosActive: false
+          }
+        };
+        syncManager.publishTelemetry(clearedPayload, getRiderProfile(currentRideId));
+      }
+      showToast('Emergency alert dismissed. Standby mode restored.');
+    });
+  }
+
   // 6. Switch Rider / Logout Button
-  document.getElementById('btn-switch-rider').addEventListener('click', () => {
-    lockDashboard();
-  });
+  const btnSwitch = document.getElementById('btn-switch-rider');
+  if (btnSwitch) {
+    btnSwitch.addEventListener('click', () => {
+      lockDashboard();
+    });
+  }
 
   // 7. Copy Shareable Live Link
-  document.getElementById('btn-copy-link').addEventListener('click', () => {
-    if (!currentRideId) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      showToast('Live Tracking Link copied to clipboard!');
-    }).catch(() => {
-      prompt('Copy your Live Tracking link:', shareUrl);
+  const btnCopyLink = document.getElementById('btn-copy-link');
+  if (btnCopyLink) {
+    btnCopyLink.addEventListener('click', () => {
+      if (!currentRideId) return;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('Live Tracking Link copied to clipboard!');
+      }).catch(() => {
+        prompt('Copy your Live Tracking link:', shareUrl);
+      });
     });
-  });
+  }
 
   // 8. Map Action Buttons & Google Maps Basemap Switcher
   document.querySelectorAll('.basemap-btn').forEach(btn => {
@@ -188,34 +234,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  document.getElementById('btn-center-map').addEventListener('click', () => {
-    centerOnRider();
-    showToast('Map centered on rider');
-  });
+  const btnCenterMap = document.getElementById('btn-center-map');
+  if (btnCenterMap) {
+    btnCenterMap.addEventListener('click', () => {
+      centerOnRider();
+      showToast('Map centered on rider');
+    });
+  }
 
-  document.getElementById('btn-toggle-trail').addEventListener('click', () => {
-    const isVisible = toggleTrail();
-    showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
-  });
+  const btnToggleTrail = document.getElementById('btn-toggle-trail');
+  if (btnToggleTrail) {
+    btnToggleTrail.addEventListener('click', () => {
+      const isVisible = toggleTrail();
+      showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
+    });
+  }
 
   // 9. Mode Switcher (Viewer / Phone GPS / Demo Simulator)
   const btnViewer = document.getElementById('mode-viewer');
   const btnTransmitter = document.getElementById('mode-transmitter');
-  
 
   function setMode(mode) {
     currentMode = mode;
-    [btnViewer, btnTransmitter].forEach(b => {
+    [btnViewer, btnTransmitter].filter(Boolean).forEach(b => {
       b.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1';
     });
 
     if (mode === 'viewer') {
-      btnViewer.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
+      if (btnViewer) btnViewer.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
       stopPhoneGpsBroadcaster();
-      
       showToast('Viewer Mode: Listening for live bike data...');
     } else if (mode === 'transmitter') {
-      btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
+      if (btnTransmitter) btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
       
       const started = startPhoneGpsBroadcaster((phoneLoc) => {
         const payload = {
@@ -240,11 +290,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnViewer.addEventListener('click', () => setMode('viewer'));
-  btnTransmitter.addEventListener('click', () => setMode('transmitter'));
-  
-
-  
-
-
+  if (btnViewer) btnViewer.addEventListener('click', () => setMode('viewer'));
+  if (btnTransmitter) btnTransmitter.addEventListener('click', () => setMode('transmitter'));
 });
