@@ -2,26 +2,14 @@
   "version": 2,
   "framework": null,
   "outputDirectory": ".",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/telemetry",
-      "dest": "/api/telemetry.js"
+      "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|apk|woff|woff2|ttf))",
+      "destination": "/$1"
     },
     {
-      "src": "/api/sos-history",
-      "dest": "/api/sos-history.js"
-    },
-    {
-      "src": "/downloads/(.*)",
-      "dest": "/downloads/$1"
-    },
-    {
-      "src": "/(.*\\.(js|css|png|jpg|jpeg|gif|ico|svg|apk|woff|woff2|ttf))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/(?!api/.*)(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
