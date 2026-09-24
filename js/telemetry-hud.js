@@ -1,6 +1,6 @@
 /**
  * Telemetry HUD Controller
- * Updates gauges, sensor cards, SOS history feed, and Rider Profile.
+ * Updates gauges, sensor cards, Smart Ignition Interlock, SOS history feed, and Rider Profile.
  */
 
 export function updateTelemetry(telemetry, riderProfile) {
@@ -83,18 +83,60 @@ export function updateTelemetry(telemetry, riderProfile) {
     }
   }
 
-  // 6. Alcohol BAC
+  // 6. Alcohol BAC & Interlock Decision
+  const alcoholVal = sensors.alcoholAdc || 0;
+  const isAlcoholDrunk = alcoholVal >= 800 || sensors.alcoholStatus === 'DRUNK' || String(sensors.alcoholStatus || '').includes('LOCKED');
+  const isAlcoholSafe = !isAlcoholDrunk;
+
   const alcoholAdc = document.getElementById('alcohol-adc-val');
   const alcoholBadge = document.getElementById('alcohol-status-badge');
   const alcoholProgress = document.getElementById('alcohol-progress');
   if (alcoholAdc && alcoholBadge && alcoholProgress) {
-    const val = sensors.alcoholAdc || 0;
-    alcoholAdc.textContent = val;
-    const isSafe = (sensors.alcoholStatus === 'SAFE' || val < 1500);
-    alcoholBadge.textContent = isSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
-    alcoholBadge.className = isSafe ? 'text-[10px] font-bold text-emerald-400 uppercase' : 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
-    alcoholProgress.style.width = `${Math.min(100, (val / 2000) * 100)}%`;
-    alcoholProgress.className = isSafe ? 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300' : 'bg-red-500 h-1.5 rounded-full transition-all duration-300';
+    alcoholAdc.textContent = alcoholVal;
+    alcoholBadge.textContent = isAlcoholSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
+    alcoholBadge.className = isAlcoholSafe ? 'text-[10px] font-bold text-emerald-400 uppercase' : 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
+    alcoholProgress.style.width = `${Math.min(100, (alcoholVal / 1600) * 100)}%`;
+    alcoholProgress.className = isAlcoholSafe ? 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300' : 'bg-red-500 h-1.5 rounded-full transition-all duration-300';
+  }
+
+  // 6b. Prominent Smart Ignition & Alcohol Interlock Card
+  const cardIgnition = document.getElementById('card-ignition-interlock');
+  const ignitionIconBox = document.getElementById('ignition-icon-box');
+  const ignitionIcon = document.getElementById('ignition-icon');
+  const ignitionBadge = document.getElementById('ignition-badge');
+  const ignitionSubtext = document.getElementById('ignition-subtext');
+  const alcoholInterlockStatus = document.getElementById('alcohol-interlock-status');
+
+  const isIgnitionUnlocked = sensors.ignitionRelay !== false && isAlcoholSafe && !alerts.isCrashDetected;
+
+  if (cardIgnition && ignitionBadge) {
+    if (isIgnitionUnlocked) {
+      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-emerald-500/30 bg-emerald-950/20 transition-all duration-300';
+      if (ignitionIconBox) ignitionIconBox.className = 'w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg transition-all';
+      if (ignitionIcon) ignitionIcon.className = 'fa-solid fa-key text-emerald-400';
+      ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      ignitionBadge.textContent = 'UNLOCKED ✅';
+      if (ignitionSubtext) ignitionSubtext.textContent = 'Safe to Ride — Ignition Circuit Active';
+      if (alcoholInterlockStatus) {
+        alcoholInterlockStatus.textContent = 'DISENGAGED (SAFE)';
+        alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-emerald-400';
+      }
+    } else {
+      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-950/50 animate-pulse transition-all duration-300';
+      if (ignitionIconBox) ignitionIconBox.className = 'w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-500 text-lg transition-all';
+      if (ignitionIcon) ignitionIcon.className = 'fa-solid fa-ban text-red-500';
+      ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-500/20 text-red-400 border border-red-500/30';
+      ignitionBadge.textContent = 'LOCKED 🛑';
+      if (ignitionSubtext) {
+        ignitionSubtext.textContent = isAlcoholDrunk 
+          ? 'Engine Cut Off — High Breath Alcohol (>800 ADC) Detected!'
+          : 'Engine Cut Off — Safety Interlock Engaged';
+      }
+      if (alcoholInterlockStatus) {
+        alcoholInterlockStatus.textContent = isAlcoholDrunk ? 'ENGAGED (ENGINE LOCKED)' : 'LOCKED (SAFETY)';
+        alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-red-400';
+      }
+    }
   }
 
   // 7. MPU G-Force
@@ -119,15 +161,14 @@ export function updateTelemetry(telemetry, riderProfile) {
   if (mpuY && sensors.gForceY !== undefined) mpuY.textContent = `${sensors.gForceY > 0 ? '+' : ''}${sensors.gForceY.toFixed(2)} g`;
   if (mpuZ && sensors.gForceZ !== undefined) mpuZ.textContent = `${sensors.gForceZ > 0 ? '+' : ''}${sensors.gForceZ.toFixed(2)} g`;
 
-  // 8. Ignition Relay
+  // 8. Ignition Relay Badge in MPU / Sensor grid
   const relayStatus = document.getElementById('relay-status-text');
   const relayBadge = document.getElementById('relay-badge');
   if (relayStatus && relayBadge) {
-    const isOn = sensors.ignitionRelay !== false && !alerts.isCrashDetected;
-    relayStatus.textContent = isOn ? 'ENGINE IGNITION ENABLED' : 'IGNITION CUTOFF (LOCKED)';
-    relayStatus.className = isOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
-    relayBadge.textContent = isOn ? 'CLOSED (ON)' : 'OPEN (OFF)';
-    relayBadge.className = isOn ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
+    relayStatus.textContent = isIgnitionUnlocked ? 'ENGINE IGNITION ENABLED' : 'IGNITION CUTOFF (LOCKED)';
+    relayStatus.className = isIgnitionUnlocked ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
+    relayBadge.textContent = isIgnitionUnlocked ? 'CLOSED (ON)' : 'OPEN (OFF)';
+    relayBadge.className = isIgnitionUnlocked ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
   }
 }
 
