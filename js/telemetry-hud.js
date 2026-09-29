@@ -1,7 +1,106 @@
 /**
  * Telemetry HUD Controller
  * Updates gauges, sensor cards, Smart Ignition Interlock, SOS history feed, and Rider Profile.
+ * Synchronized with the Guardian Android APK feature set.
  */
+
+// Cached latest crash event to keep Last Known Location anchored to the accident pin
+let cachedLatestCrash = null;
+
+/**
+ * Format timestamp to full calendar date & 12-hour AM/PM time
+ * Matches the Guardian APK format: "29 Sep 2026, 07:45:12 PM"
+ */
+export function formatFullDateTime(ts) {
+  if (!ts) return 'Just now';
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) return 'Just now';
+  const day = String(d.getDate()).padStart(2, '0');
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = monthNames[d.getMonth()];
+  const year = d.getFullYear();
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // convert 0 to 12
+  const formattedHours = String(hours).padStart(2, '0');
+
+  return `${day} ${month} ${year}, ${formattedHours}:${minutes}:${seconds} ${ampm}`;
+}
+
+/**
+ * Update the Last Known Location Card
+ * Priority: If a crash event exists in SOS history, anchor coordinates and timestamp to that crash!
+ * Otherwise, display the latest verified phone GPS ping.
+ */
+export function updateLastKnownLocationCard(crashEvent, liveLoc) {
+  const card = document.getElementById('last-known-location-card');
+  const title = document.getElementById('last-known-title');
+  const badge = document.getElementById('last-known-badge');
+  const coords = document.getElementById('last-known-coords');
+  const tsElem = document.getElementById('last-seen-timestamp');
+  const navBtn = document.getElementById('btn-navigate-last-known');
+  const subtext = document.getElementById('last-known-subtext');
+
+  if (crashEvent) {
+    const lat = crashEvent.location ? crashEvent.location.latitude : (crashEvent.lat || 18.4529);
+    const lng = crashEvent.location ? crashEvent.location.longitude : (crashEvent.lng || 73.8553);
+    const ts = crashEvent.timestamp || Date.now();
+    const g = crashEvent.gForce ? Number(crashEvent.gForce).toFixed(1) : '4.0';
+
+    if (card) {
+      card.className = 'glass-card rounded-xl p-3.5 border border-red-500/50 bg-red-950/25 shadow-lg shadow-red-950/40 transition-all duration-300';
+    }
+    if (title) {
+      title.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-400 animate-pulse"></i> <span class="text-red-400">Crash Incident Location</span>';
+    }
+    if (badge) {
+      badge.className = 'text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40';
+      badge.textContent = `CRASH ${g}G`;
+    }
+    if (coords) {
+      coords.textContent = `${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E`;
+    }
+    if (tsElem) {
+      tsElem.textContent = formatFullDateTime(ts);
+    }
+    if (subtext) {
+      subtext.textContent = 'Incident Rescue Pin:';
+    }
+    if (navBtn) {
+      navBtn.href = `https://maps.google.com/?q=${lat},${lng}`;
+    }
+  } else if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
+    const lat = liveLoc.latitude;
+    const lng = liveLoc.longitude;
+    const ts = liveLoc.timestamp || Date.now();
+
+    if (card) {
+      card.className = 'glass-card rounded-xl p-3.5 border border-amber-500/40 bg-amber-950/20 transition-all duration-300';
+    }
+    if (title) {
+      title.innerHTML = '<i class="fa-solid fa-map-pin text-amber-400"></i> <span class="text-amber-400">Last Known Location</span>';
+    }
+    if (badge) {
+      badge.className = 'text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      badge.textContent = 'LIVE GPS';
+    }
+    if (coords) {
+      coords.textContent = `${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E`;
+    }
+    if (tsElem) {
+      tsElem.textContent = formatFullDateTime(ts);
+    }
+    if (subtext) {
+      subtext.textContent = 'Crash / Disconnect Backup:';
+    }
+    if (navBtn) {
+      navBtn.href = `https://maps.google.com/?q=${lat},${lng}`;
+    }
+  }
+}
 
 export function updateTelemetry(telemetry, riderProfile) {
   if (!telemetry) return;
@@ -41,7 +140,7 @@ export function updateTelemetry(telemetry, riderProfile) {
     }
   }
 
-  // 3. Map Speed HUD
+  // 3. Map Speed HUD (Fused GPS + Accelerometer Speed)
   const mapSpeed = document.getElementById('map-speed');
   if (mapSpeed) mapSpeed.textContent = Math.round(loc.speedKmph || 0);
 
@@ -55,7 +154,7 @@ export function updateTelemetry(telemetry, riderProfile) {
 
   const mapCoordsText = document.getElementById('map-coords-text');
   if (mapCoordsText && loc.latitude && loc.longitude) {
-    mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
+    mapCoordsText.textContent = `${Number(loc.latitude).toFixed(5)}° N, ${Number(loc.longitude).toFixed(5)}° E`;
   }
 
   const isRealGps = loc.isRealGps === true || loc.provider === 'PHONE_HARDWARE_GPS';
@@ -76,12 +175,13 @@ export function updateTelemetry(telemetry, riderProfile) {
     mapAccuracyText.textContent = isRealGps ? `Hardware GPS Accuracy: ±${acc}m` : `Simulated Route Accuracy: ±${acc}m`;
   }
 
-  // 4. Last Known Pre-Crash Coordinates
-  const lastKnown = document.getElementById('last-known-coords');
-  const navBtn = document.getElementById('btn-navigate-last-known');
-  if (lastKnown && loc.latitude && loc.longitude) {
-    lastKnown.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
-    if (navBtn) navBtn.href = `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
+  // 4. Update Last Known Location: If no crash logged yet, use live coordinates & timestamp
+  if (!cachedLatestCrash && loc.latitude && loc.longitude) {
+    updateLastKnownLocationCard(null, {
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      timestamp: telemetry.timestamp || Date.now()
+    });
   }
 
   // 5. Helmet Wear Status
@@ -101,7 +201,7 @@ export function updateTelemetry(telemetry, riderProfile) {
     }
   }
 
-  // 6. Alcohol BAC & Interlock Decision
+  // 6. Alcohol BAC & Interlock Decision (Matching Guardian APK 800 ADC threshold)
   const alcoholVal = sensors.alcoholAdc || 0;
   const isAlcoholDrunk = alcoholVal >= 800 || sensors.alcoholStatus === 'DRUNK' || String(sensors.alcoholStatus || '').includes('LOCKED');
   const isAlcoholSafe = !isAlcoholDrunk;
@@ -147,7 +247,7 @@ export function updateTelemetry(telemetry, riderProfile) {
       ignitionBadge.textContent = 'LOCKED 🛑';
       if (ignitionSubtext) {
         ignitionSubtext.textContent = isAlcoholDrunk 
-          ? 'Engine Cut Off — High Breath Alcohol (>800 ADC) Detected!'
+          ? 'Engine Cut Off — High Breath Alcohol (>800 ADC) Detected!' 
           : 'Engine Cut Off — Safety Interlock Engaged';
       }
       if (alcoholInterlockStatus) {
@@ -197,35 +297,42 @@ export function renderSosHistoryList(history) {
 
   if (countBadge) countBadge.textContent = `${history.length} Event${history.length === 1 ? '' : 's'}`;
 
+  // Anchor Last Known Location card directly to the most recent accident event if present!
+  if (history.length > 0) {
+    cachedLatestCrash = history[0];
+    updateLastKnownLocationCard(cachedLatestCrash, null);
+  } else {
+    cachedLatestCrash = null;
+  }
+
   if (history.length === 0) {
     container.innerHTML = `<div class="text-[11px] text-slate-400 italic text-center py-2">No emergency dispatches recorded yet. Guardian system on standby.</div>`;
     return;
   }
 
   container.innerHTML = history.map(item => {
-    const d = new Date(item.timestamp || Date.now());
-    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const lat = item.location ? item.location.latitude : 18.4529;
-    const lng = item.location ? item.location.longitude : 73.8553;
-    const g = item.gForce ? item.gForce.toFixed(1) : '4.0';
+    const formattedDate = formatFullDateTime(item.timestamp);
+    const lat = item.location ? item.location.latitude : (item.lat || 18.4529);
+    const lng = item.location ? item.location.longitude : (item.lng || 73.8553);
+    const g = item.gForce ? Number(item.gForce).toFixed(1) : '4.0';
 
     return `
-      <div class="p-2.5 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-1 text-xs">
+      <div class="p-2.5 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-1.5 text-xs">
         <div class="flex items-center justify-between">
           <span class="font-bold text-red-400 flex items-center gap-1">
             <i class="fa-solid fa-car-burst text-[10px]"></i>
             <span>${item.type === 'MANUAL_SOS' ? 'Manual SOS Alert' : 'Crash Detected (' + g + 'G)'}</span>
           </span>
-          <span class="text-[10px] text-slate-400 font-mono">${timeStr}</span>
+          <span class="text-[10px] text-slate-400 font-mono font-semibold">${formattedDate}</span>
         </div>
-        <div class="text-[11px] text-slate-300 font-mono">
-          📍 ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E
+        <div class="text-[11px] text-slate-200 font-mono font-bold">
+          📍 ${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E
         </div>
         <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
-          <span class="text-emerald-400 font-semibold">
+          <span class="text-emerald-400 font-semibold flex items-center gap-1">
             <i class="fa-solid fa-check-double text-[9px]"></i> SMS & Auto-Call Dispatched
           </span>
-          <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="text-blue-400 font-bold hover:underline">
+          <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="px-2 py-0.5 rounded bg-blue-600/30 text-cyan-300 font-bold border border-blue-500/40 hover:underline">
             View Pin ↗
           </a>
         </div>
