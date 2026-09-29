@@ -58,6 +58,24 @@ export function updateTelemetry(telemetry, riderProfile) {
     mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
   }
 
+  const isRealGps = loc.isRealGps === true || loc.provider === 'PHONE_HARDWARE_GPS';
+  const gpsBadge = document.getElementById('gps-source-badge');
+  if (gpsBadge) {
+    if (isRealGps) {
+      gpsBadge.className = 'px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1';
+      gpsBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span>📍 REAL PHONE GPS (LIVE)</span>';
+    } else {
+      gpsBadge.className = 'px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1';
+      gpsBadge.innerHTML = '<i class="fa-solid fa-gamepad text-[9px]"></i> <span>🎮 DEMO SIMULATION (OPTIONAL)</span>';
+    }
+  }
+
+  const mapAccuracyText = document.getElementById('map-accuracy-text');
+  if (mapAccuracyText) {
+    const acc = loc.accuracyMeters ? Number(loc.accuracyMeters).toFixed(1) : '3.0';
+    mapAccuracyText.textContent = isRealGps ? `Hardware GPS Accuracy: ±${acc}m` : `Simulated Route Accuracy: ±${acc}m`;
+  }
+
   // 4. Last Known Pre-Crash Coordinates
   const lastKnown = document.getElementById('last-known-coords');
   const navBtn = document.getElementById('btn-navigate-last-known');
