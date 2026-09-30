@@ -109,11 +109,22 @@ function initGoogleMapEngine(container, lat, lng) {
 
   gMapInstance = new google.maps.Map(container, {
     center: centerLatLng,
-    zoom: 17,
+    zoom: 16,
+    maxZoom: 17,
+    minZoom: 3,
     mapTypeId: google.maps.MapTypeId.HYBRID,
     disableDefaultUI: true,
     zoomControl: true,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP }
+  });
+
+  // Guard against zooming into missing satellite imagery levels ("Sorry, we have no imagery here")
+  gMapInstance.addListener('zoom_changed', () => {
+    const currentZoom = gMapInstance.getZoom();
+    const type = gMapInstance.getMapTypeId();
+    if ((type === google.maps.MapTypeId.HYBRID || type === google.maps.MapTypeId.SATELLITE) && currentZoom > 17) {
+      gMapInstance.setZoom(17);
+    }
   });
 
   gTrafficLayer = new google.maps.TrafficLayer();
@@ -342,9 +353,11 @@ export function centerOnRider() {
   isAutoFollow = true;
   if (activeEngine === 'google' && gMapInstance) {
     gMapInstance.panTo({ lat: lastLat, lng: lastLng });
-    gMapInstance.setZoom(18);
+    const currentType = gMapInstance.getMapTypeId();
+    const targetZoom = (currentType === google.maps.MapTypeId.HYBRID || currentType === google.maps.MapTypeId.SATELLITE) ? 17 : 18;
+    gMapInstance.setZoom(targetZoom);
   } else if (activeEngine === 'leaflet' && lMapInstance) {
-    lMapInstance.setView([lastLat, lastLng], 18);
+    lMapInstance.setView([lastLat, lastLng], 17);
   }
 }
 
@@ -357,16 +370,18 @@ export function switchBasemap(style = 'satellite') {
   if (activeEngine === 'google' && gMapInstance) {
     if (style === 'satellite') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.HYBRID);
-      gMapInstance.setOptions({ styles: [] });
+      gMapInstance.setOptions({ styles: [], maxZoom: 17 });
+      if (gMapInstance.getZoom() > 17) gMapInstance.setZoom(17);
     } else if (style === 'dark') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.ROADMAP);
-      gMapInstance.setOptions({ styles: GOOGLE_DARK_STYLE });
+      gMapInstance.setOptions({ styles: GOOGLE_DARK_STYLE, maxZoom: 20 });
     } else if (style === 'roadmap') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.ROADMAP);
-      gMapInstance.setOptions({ styles: [] });
+      gMapInstance.setOptions({ styles: [], maxZoom: 20 });
     } else if (style === 'terrain') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.TERRAIN);
-      gMapInstance.setOptions({ styles: [] });
+      gMapInstance.setOptions({ styles: [], maxZoom: 16 });
+      if (gMapInstance.getZoom() > 16) gMapInstance.setZoom(16);
     }
   }
 
