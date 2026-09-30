@@ -1,0 +1,9 @@
+# Robots.txt for Guardian Smart Helmet Life-Safety Platform
+# URL: https://sanrakshan-eight.vercel.app/
+
+User-agent: *
+Allow: /
+Disallow: /api/private/
+
+# Sitemap location
+Sitemap: https://sanrakshan-eight.vercel.app/sitemap.xml
