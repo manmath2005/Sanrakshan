@@ -1,22 +1,43 @@
 /**
  * ============================================================================
- * GUARDIAN SMART HELMET - BIKE RECEIVER & IGNITION INTERLOCK CONTROLLER
+ * GUARDIAN SMART HELMET - BIKE RECEIVER & IGNITION MOTOR CONTROLLER
  * Target Hardware: ESP32 DevKit V1 (30-Pin)
- * Power Source: 5V DC (Bike Battery / USB)
+ * Power Source for ESP32: 5V USB / Power Bank / Buck Converter
+ * Power Source for Motor: 1200mAh Rechargeable Li-ion Battery (3.7V - 4.2V)
  * ============================================================================
+ * 
  * HARDWARE CONNECTIONS:
- * - ESP32 VIN                        -> +5V Power
- * - ESP32 GND                        -> Ground (GND)
- * - Relay Module (Signal IN)         -> GPIO 18 (HIGH = Ignition UNLOCKED / ON)
- * - 0.96" I2C OLED Display (Optional) -> SDA = GPIO 21, SCL = GPIO 22
+ * ----------------------------------------------------------------------------
+ * 1. TEMPORARY IGNITION KEY SWITCH:
+ *    - Switch Terminal 1   -> ESP32 GPIO 4
+ *    - Switch Terminal 2   -> ESP32 GND
+ *    (Uses internal INPUT_PULLUP: Switch ON/Closed = LOW, Switch OFF/Open = HIGH)
  * 
- * SAFETY IGNITION INTERLOCK RULE:
- * Ignition unlocks ONLY IF:
- * 1. Helmet is Worn (true)
- * 2. Rider is Sober (alcohol < 800 ADC)
- * 3. No Crash Triggered (false)
+ * 2. MOTOR CONTROL OUTPUT (Relay / MOSFET / Transistor / Motor Driver):
+ *    - Control Signal (IN) -> ESP32 GPIO 18 (Active HIGH: HIGH = Motor ON)
  * 
- * If ANY condition fails or the wireless signal is lost, the Relay cuts off!
+ * 3. 1200mAh Li-ion CELL & DC MOTOR POWER WIRING:
+ *    - Li-ion Battery (+)  -> Relay COM (or Motor Driver VCC / MOSFET Drain)
+ *    - Relay NO Terminal   -> DC Motor (+) Wire
+ *    - DC Motor (-) Wire   -> Li-ion Battery (-) Wire
+ *    - Li-ion Battery (-)  -> ESP32 GND  (⚠️ CRITICAL: COMMON GROUND REQUIRED!)
+ * 
+ * 4. OPTIONAL I2C OLED (128x64 0.96"):
+ *    - OLED VCC            -> ESP32 3V3 (or VIN)
+ *    - OLED GND            -> ESP32 GND
+ *    - OLED SCL            -> ESP32 GPIO 22
+ *    - OLED SDA            -> ESP32 GPIO 21
+ * 
+ * 5. STATUS INDICATOR:
+ *    - Built-in Blue LED   -> ESP32 GPIO 2 (Solid ON = Motor Running, Blinking = Lockout)
+ * ----------------------------------------------------------------------------
+ * 
+ * EXACT IGNITION MOTOR LOGIC:
+ * 1. Switch ON + Helmet Worn + Rider Sober + No Crash  -> MOTOR RUNS! (Ignition Active)
+ * 2. Switch ON + Rider is DRUNK                        -> MOTOR STAYS OFF! (Locked until sober)
+ * 3. Switch ON + Helmet NOT Worn                       -> MOTOR STAYS OFF! (Must wear helmet)
+ * 4. Switch ON + Crash Occurs                          -> MOTOR CUTS OFF INSTANTLY!
+ * 5. Switch OFF                                        -> MOTOR OFF
  * ============================================================================
  */
 
@@ -26,8 +47,14 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// PIN DEFINITION
-#define RELAY_IGNITION_PIN  18  // Motor / Ignition Relay (Active HIGH)
+// PIN ASSIGNMENTS
+#define IGNITION_SWITCH_PIN 4   // Temporary Ignition Key Switch (INPUT_PULLUP to GND)
+#define MOTOR_PIN           18  // Motor Relay / MOSFET Driver Signal (Active HIGH)
+#define STATUS_LED_PIN      2   // Built-in Blue LED indicator
+
+// SAFETY THRESHOLDS
+const int ALCOHOL_THRESHOLD_ADC      = 800;   // >= 800 ADC = Intoxicated / Engine Locked
+const unsigned long HELMET_TIMEOUT_MS = 2500;  // Lock motor if helmet transmitter loses power/range
 
 // OPTIONAL OLED DISPLAY (128x64 I2C)
 #define SCREEN_WIDTH 128
@@ -35,19 +62,19 @@
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 bool oledAvailable = false;
 
-// SENSOR DATA RECEIVED FROM HELMET VIA ESP-NOW
+// TELEMETRY PACKET MATCHING HELMET TRANSMITTER
 struct GuardianTelemetryPacket {
-  bool helmetWorn;       // true = Worn, false = Removed
-  int alcoholAdc;        // Raw MQ-3 reading
-  float totalG;          // Impact force in Gs
-  bool isCrashTriggered; // Crash confirmed
+  bool helmetWorn;       // true = Worn on head, false = Removed
+  int alcoholAdc;        // Raw MQ-3 reading (0 - 4095)
+  float totalG;          // Vector G-force impact
+  bool isCrashTriggered; // True if crash confirmed
 };
 
-GuardianTelemetryPacket helmetData;
+GuardianTelemetryPacket helmetData = {false, 0, 1.0, false};
 unsigned long lastPacketReceived = 0;
-const unsigned long HELMET_TIMEOUT_MS = 2500; // If helmet turns off or goes out of range
+bool motorRunning = false;
 
-// ESP-NOW Receive Callback (Supports ESP32 Core 2.x & Core 3.x)
+// ESP-NOW Receive Callback (Compatible with ESP32 Core 2.x & 3.x)
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
 void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, int len) {
 #else
@@ -57,111 +84,176 @@ void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
     memcpy(&helmetData, incomingData, sizeof(helmetData));
     lastPacketReceived = millis();
 
-    // Instant Zero-Delay Safety Action on Crash (< 5ms)
+    // Instant Zero-Delay Crash Cutoff (< 5ms)
     if (helmetData.isCrashTriggered) {
-      digitalWrite(RELAY_IGNITION_PIN, LOW); // Immediate engine cutoff
+      digitalWrite(MOTOR_PIN, LOW);
+      digitalWrite(STATUS_LED_PIN, LOW);
+      motorRunning = false;
     }
   }
+}
+
+void updateOledDisplay(bool switchOn, bool isDrunk, bool isSafe, const char* lockReason) {
+  if (!oledAvailable) return;
+
+  display.clearDisplay();
+  display.setTextColor(WHITE);
+
+  // Header
+  display.setTextSize(1);
+  display.setCursor(10, 0);
+  display.println("GUARDIAN BIKE UNIT");
+  display.drawLine(0, 10, 127, 10, WHITE);
+
+  // Line 1: Ignition Switch
+  display.setCursor(0, 15);
+  display.printf("SWITCH : %s", switchOn ? "ON [CLOSED]" : "OFF [OPEN]");
+
+  // Line 2: Helmet Status
+  display.setCursor(0, 26);
+  display.printf("HELMET : %s", helmetData.helmetWorn ? "WORN [OK]" : "REMOVED [X]");
+
+  // Line 3: Alcohol
+  display.setCursor(0, 37);
+  display.printf("ALCOHOL: %4d (%s)", helmetData.alcoholAdc, isDrunk ? "DRUNK!" : "SOBER");
+
+  // Line 4: Motor Status Bar
+  display.setCursor(0, 49);
+  if (motorRunning) {
+    display.println("MOTOR  : >> RUNNING <<");
+  } else {
+    display.printf("MOTOR  : LOCKED (%s)", lockReason);
+  }
+
+  display.display();
 }
 
 void setup() {
   Serial.begin(115200);
   delay(500);
 
-  Serial.println("\n==============================================");
-  Serial.println("  GUARDIAN - BIKE RECEIVER & IGNITION UNIT");
-  Serial.println("  \"Your Silent Co-Rider for Life & Safety.\"");
-  Serial.println("==============================================");
+  Serial.println("\n=======================================================");
+  Serial.println("  🏍️  GUARDIAN BIKE RECEIVER & MOTOR IGNITION CONTROLLER");
+  Serial.println("  \"Smart Alcohol & Helmet Interlock for DC Motor\"");
+  Serial.println("=======================================================");
 
-  // Configure Relay (Locked by default for safety)
-  pinMode(RELAY_IGNITION_PIN, OUTPUT);
-  digitalWrite(RELAY_IGNITION_PIN, LOW);
+  // 1. Digital GPIO Configuration
+  pinMode(IGNITION_SWITCH_PIN, INPUT_PULLUP);
+  pinMode(MOTOR_PIN, OUTPUT);
+  pinMode(STATUS_LED_PIN, OUTPUT);
 
-  // Initialize OLED Display (Optional)
+  // Default state: Motor and LED completely OFF
+  digitalWrite(MOTOR_PIN, LOW);
+  digitalWrite(STATUS_LED_PIN, LOW);
+
+  // 2. Optional OLED Display (With I2C Timeout to prevent freeze)
   Wire.begin(21, 22);
+  Wire.setTimeOut(100);
   if (display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     oledAvailable = true;
     display.clearDisplay();
     display.setTextColor(WHITE);
     display.setTextSize(1);
-    display.setCursor(15, 20);
-    display.println("GUARDIAN BIKE UNIT");
-    display.setCursor(5, 35);
+    display.setCursor(12, 18);
+    display.println("GUARDIAN RECEIVER");
+    display.setCursor(8, 35);
     display.println("Waiting for Helmet...");
     display.display();
+    Serial.println("✅ OLED Display 128x64 Initialized.");
+  } else {
+    Serial.println("ℹ️  OLED Display not detected (operating in standalone mode).");
   }
 
-  // Initialize ESP-NOW Radio
+  // 3. Initialize ESP-NOW Radio
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
   if (esp_now_init() != ESP_OK) {
-    Serial.println("❌ ESP-NOW initialization failed!");
+    Serial.println("❌ [ERROR] ESP-NOW initialization failed!");
   } else {
-    Serial.println("✅ ESP-NOW Wireless Receiver Active.");
+    Serial.println("✅ ESP-NOW Radio Active. Listening for Helmet Transmitter...");
     esp_now_register_recv_cb(OnDataRecv);
   }
 
-  Serial.println("🚀 Bike Receiver Ready. Waiting for Helmet signal...\n");
+  Serial.println("🚀 Receiver Ready. Turn switch ON when wearing helmet & sober to start motor.\n");
 }
 
 void loop() {
-  // Check if wireless link from Helmet Transmitter is alive
-  bool helmetLinkActive = (millis() - lastPacketReceived < HELMET_TIMEOUT_MS);
+  unsigned long now = millis();
 
-  bool isHelmetWorn = helmetLinkActive && helmetData.helmetWorn;
-  bool isAlcoholSafe = helmetLinkActive && (helmetData.alcoholAdc < 800);
-  bool isNoCrash = !helmetData.isCrashTriggered;
+  // -------------------------------------------------------------
+  // 1. READ PHYSICAL IGNITION KEY SWITCH
+  // -------------------------------------------------------------
+  // INPUT_PULLUP: Switch ON connects pin to GND -> LOW
+  bool switchOn = (digitalRead(IGNITION_SWITCH_PIN) == LOW);
 
-  // THREE-TIER SAFETY INTERLOCK:
-  // Ignition is unlocked ONLY IF helmet is on, alcohol is sober, and no crash occurred
-  bool ignitionAllowed = isHelmetWorn && isAlcoholSafe && isNoCrash;
+  // -------------------------------------------------------------
+  // 2. EVALUATE WIRELESS HELMET TELEMETRY
+  // -------------------------------------------------------------
+  bool helmetConnected = (now - lastPacketReceived < HELMET_TIMEOUT_MS);
+  bool helmetWorn      = helmetConnected && helmetData.helmetWorn;
+  bool isDrunk         = helmetConnected && (helmetData.alcoholAdc >= ALCOHOL_THRESHOLD_ADC);
+  bool isCrash         = helmetConnected && helmetData.isCrashTriggered;
 
-  if (ignitionAllowed) {
-    digitalWrite(RELAY_IGNITION_PIN, HIGH); // Relay Closed -> Engine Active / Unlocked ✅
-  } else {
-    digitalWrite(RELAY_IGNITION_PIN, LOW);  // Relay Open -> Engine Disabled / Cutoff 🛑
-  }
+  // Safe condition: Switch is ON + Helmet Worn + Sober + No Crash + Helmet Signal Alive
+  bool safeToRun = switchOn && helmetWorn && !isDrunk && !isCrash;
 
-  // Update Bike OLED Display if connected
-  if (oledAvailable) {
-    display.clearDisplay();
-    display.setTextSize(1);
-    display.setCursor(0, 0);
-    display.print(">> GUARDIAN BIKE HUD <<");
+  const char* lockReason = "SAFE";
 
-    display.setCursor(0, 14);
-    display.printf("Helmet : %s", !helmetLinkActive ? "DISCONNECTED" : (helmetData.helmetWorn ? "WORN [OK]" : "NOT WORN [X]"));
-
-    display.setCursor(0, 26);
-    display.printf("Alcohol: %d (%s)", helmetData.alcoholAdc, (helmetData.alcoholAdc >= 800 ? "DRUNK!" : "SOBER"));
-
-    display.setCursor(0, 38);
-    display.printf("Impact : %.2fG", helmetData.totalG);
-
-    display.setCursor(0, 50);
-    if (helmetData.isCrashTriggered) {
-      display.print("IGNITION: CRASH CUTOFF 🚨");
-    } else if (!isHelmetWorn) {
-      display.print("IGNITION: LOCKED (NO HELMET)");
-    } else if (!isAlcoholSafe) {
-      display.print("IGNITION: LOCKED (DRUNK)");
+  // -------------------------------------------------------------
+  // 3. MOTOR IGNITION CONTROL LOGIC
+  // -------------------------------------------------------------
+  if (switchOn) {
+    if (safeToRun) {
+      // ALL CLEAR: Start the motor from 1200mAh Li-ion battery!
+      digitalWrite(MOTOR_PIN, HIGH);
+      digitalWrite(STATUS_LED_PIN, HIGH);
+      motorRunning = true;
+      lockReason = "RUN";
     } else {
-      display.print("IGNITION: UNLOCKED [ON] ✅");
+      // SWITCH IS ON, BUT SAFETY FAILED -> KEEP MOTOR OFF!
+      digitalWrite(MOTOR_PIN, LOW);
+      motorRunning = false;
+
+      // Determine Lockout Reason for display & serial
+      if (isCrash) {
+        lockReason = "CRASH";
+      } else if (isDrunk) {
+        lockReason = "DRUNK";
+      } else if (!helmetWorn) {
+        lockReason = "NO HELMET";
+      } else if (!helmetConnected) {
+        lockReason = "NO HELMET SIGNAL";
+      }
+
+      // Fast warning blink on built-in LED (5Hz) to show user why motor won't turn on
+      digitalWrite(STATUS_LED_PIN, (now / 100) % 2 == 0 ? HIGH : LOW);
     }
-    display.display();
+  } else {
+    // Switch is OFF -> Motor OFF, LED OFF
+    digitalWrite(MOTOR_PIN, LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
+    motorRunning = false;
+    lockReason = "SWITCH OFF";
   }
 
-  // Serial Monitor Status Log (Every 500ms)
-  static unsigned long lastPrint = 0;
-  if (millis() - lastPrint >= 500) {
-    lastPrint = millis();
-    Serial.printf("[BIKE RX] Link: %s | Helmet: %s | Alcohol: %4d | Relay: %s\n",
-                  helmetLinkActive ? "ONLINE ✅" : "OFFLINE ⚠️",
-                  helmetData.helmetWorn ? "WORN" : "REMOVED",
+  // -------------------------------------------------------------
+  // 4. PERIODIC SERIAL & OLED STATUS (Every 250ms)
+  // -------------------------------------------------------------
+  static unsigned long lastLog = 0;
+  if (now - lastLog >= 250) {
+    lastLog = now;
+
+    Serial.printf("[BIKE RECEIVER] Switch: %-3s | Helmet: %-7s | Alcohol: %4d (%-5s) | Signal: %-7s | Motor: %s\n",
+                  switchOn ? "ON" : "OFF",
+                  helmetWorn ? "WORN" : "REMOVED",
                   helmetData.alcoholAdc,
-                  ignitionAllowed ? "UNLOCKED [ON] ✅" : "LOCKED [OFF] 🛑");
+                  isDrunk ? "DRUNK" : "SOBER",
+                  helmetConnected ? "ONLINE" : "OFFLINE",
+                  motorRunning ? "🟢 RUNNING" : (switchOn ? "🛑 LOCKED" : "⚪ OFF"));
+
+    updateOledDisplay(switchOn, isDrunk, safeToRun, lockReason);
   }
 
-  delay(30); // Responsive 33Hz loop
+  delay(20);
 }

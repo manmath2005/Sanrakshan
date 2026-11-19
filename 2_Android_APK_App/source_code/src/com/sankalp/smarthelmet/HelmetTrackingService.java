@@ -435,20 +435,67 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     }
 
     public void parseHelmetSensorData(String rawJson) {
+        if (rawJson == null || rawJson.trim().isEmpty()) return;
+        rawJson = rawJson.trim();
+
         try {
-            JSONObject json = new JSONObject(rawJson);
-            boolean crash = json.optBoolean("crash", false) || json.optInt("crash", 0) == 1;
-            currentAlcohol = json.optInt("alcohol", 0);
-            if (json.has("helmet")) {
-                isHelmetWorn = json.optBoolean("helmet", true) || json.optInt("helmet", 0) == 1;
-            } else {
-                isHelmetWorn = true;
+            boolean crash = false;
+            int alcohol = currentAlcohol;
+            boolean helmet = isHelmetWorn;
+            double gForce = currentGForce;
+
+            if (rawJson.startsWith("{")) {
+                try {
+                    JSONObject json = new JSONObject(rawJson);
+                    crash = json.optBoolean("crash", json.optBoolean("c", false)) || json.optInt("crash", json.optInt("c", 0)) == 1;
+                    alcohol = json.optInt("alcohol", json.optInt("a", currentAlcohol));
+                    if (json.has("helmet")) {
+                        helmet = json.optBoolean("helmet", true) || json.optInt("helmet", 1) == 1;
+                    } else if (json.has("h")) {
+                        helmet = json.optBoolean("h", true) || json.optInt("h", 1) == 1;
+                    }
+                    gForce = json.optDouble("gForce", json.optDouble("g", 1.0));
+                } catch (Exception parseEx) {
+                    // Fallback regex extraction if JSON was truncated by small MTU
+                    if (rawJson.contains("\"helmet\":false") || rawJson.contains("\"h\":0") || rawJson.contains("\"h\":false")) helmet = false;
+                    if (rawJson.contains("\"helmet\":true") || rawJson.contains("\"h\":1") || rawJson.contains("\"h\":true")) helmet = true;
+                    java.util.regex.Matcher ma = java.util.regex.Pattern.compile("\"a(?:lcohol)?\":(\\d+)").matcher(rawJson);
+                    if (ma.find()) alcohol = Integer.parseInt(ma.group(1));
+                    java.util.regex.Matcher mg = java.util.regex.Pattern.compile("\"g(?:Force)?\":([0-9.]+)").matcher(rawJson);
+                    if (mg.find()) gForce = Double.parseDouble(mg.group(1));
+                    if (rawJson.contains("\"crash\":true") || rawJson.contains("\"c\":1") || rawJson.contains("\"c\":true")) crash = true;
+                }
+            } else if (rawJson.contains("H:") || rawJson.contains("A:") || rawJson.contains("G:")) {
+                // Parse key-value: H:1,A:250,G:1.02,C:0
+                String[] tokens = rawJson.split(",");
+                for (String tok : tokens) {
+                    tok = tok.trim().toUpperCase();
+                    if (tok.startsWith("H:")) {
+                        helmet = tok.substring(2).equals("1") || tok.substring(2).equals("TRUE");
+                    } else if (tok.startsWith("A:")) {
+                        try { alcohol = Integer.parseInt(tok.substring(2)); } catch (Exception ignored) {}
+                    } else if (tok.startsWith("G:")) {
+                        try { gForce = Double.parseDouble(tok.substring(2)); } catch (Exception ignored) {}
+                    } else if (tok.startsWith("C:")) {
+                        crash = tok.substring(2).equals("1") || tok.substring(2).equals("TRUE");
+                    }
+                }
             }
-            currentGForce = json.optDouble("gForce", 1.0);
+
+            isHelmetWorn = helmet;
+            currentAlcohol = alcohol;
+            currentGForce = gForce;
+
+            // Build canonical JSON for UI & website
+            JSONObject canonical = new JSONObject();
+            canonical.put("helmet", isHelmetWorn);
+            canonical.put("alcohol", currentAlcohol);
+            canonical.put("gForce", currentGForce);
+            canonical.put("crash", crash);
 
             Intent intent = new Intent("HELMET_TELEMETRY_UPDATE");
             intent.setPackage(getPackageName());
-            intent.putExtra("DATA", rawJson);
+            intent.putExtra("DATA", canonical.toString());
             sendBroadcast(intent);
 
             dispatchTelemetryToServer(crash);

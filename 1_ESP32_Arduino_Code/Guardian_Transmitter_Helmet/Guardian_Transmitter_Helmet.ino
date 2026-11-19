@@ -97,6 +97,7 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 void initBLE() {
   BLEDevice::init("Guardian_Helmet");
+  BLEDevice::setMTU(512);
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
 
@@ -141,6 +142,7 @@ void setup() {
 
   // 3. I2C Bus & MPU-6050 Initialization
   Wire.begin(21, 22);
+  Wire.setTimeOut(100);
   if (!mpu.begin()) {
     Serial.println("⚠️ [WARN] MPU-6050 not detected. Check I2C wiring (SDA:21, SCL:22, VCC, GND).");
     mpuAvailable = false;
@@ -289,7 +291,7 @@ void loop() {
   // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK (BLE)
   // -------------------------------------------------------------
   static unsigned long lastBleNotify = 0;
-  if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 50)) {
+  if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 80)) {
     lastBleNotify = millis();
     char jsonBuffer[128];
     snprintf(jsonBuffer, sizeof(jsonBuffer),
@@ -299,7 +301,7 @@ void loop() {
              totalG,
              sosTransmittedToApp ? "true" : "false");
 
-    pCharacteristic->setValue(jsonBuffer);
+    pCharacteristic->setValue((uint8_t*)jsonBuffer, strlen(jsonBuffer));
     pCharacteristic->notify();
   }
 
