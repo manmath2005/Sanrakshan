@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guardian Smart Helmet — Hardware Component Poster</title>
+  <link rel="icon" type="image/png" href="img/guardian_logo.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;800;900&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #030712;
+      --card-bg: rgba(15, 23, 42, 0.85);
+      --border: rgba(56, 189, 248, 0.25);
+      --cyan: #06b6d4;
+      --blue: #3b82f6;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --purple: #a855f7;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      padding: 1.5rem;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(6, 182, 212, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(59, 130, 246, 0.12) 0%, transparent 40%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+    }
+
+    .poster-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      border: 2px solid rgba(56, 189, 248, 0.4);
+      border-radius: 1.5rem;
+      padding: 2rem;
+      background: rgba(3, 7, 18, 0.95);
+      box-shadow: 0 0 50px rgba(6, 182, 212, 0.25);
+      position: relative;
+    }
+
+    /* Header */
+    .poster-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid rgba(56, 189, 248, 0.3);
+      padding-bottom: 1.5rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .title-block h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      background: linear-gradient(135deg, #38bdf8 0%, #60a5fa 50%, #c084fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-transform: uppercase;
+    }
+
+    .title-block p {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      margin-top: 0.3rem;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .print-btn, .nav-btn {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: #fff;
+      border: none;
+      padding: 0.65rem 1.25rem;
+      border-radius: 0.75rem;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+      text-decoration: none;
+      box-shadow: 0 4px 15px rgba(2, 132, 199, 0.4);
+    }
+
+    .print-btn:hover, .nav-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(2, 132, 199, 0.6);
+    }
+
+    /* Subsystem Divider Headers */
+    .subsystem-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #38bdf8;
+      margin: 1.5rem 0 1rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .subsystem-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(56, 189, 248, 0.6), transparent);
+    }
+
+    /* Component Grid */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    /* Component Card */
+    .comp-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 1.25rem;
+      padding: 1.25rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .comp-card:hover {
+      transform: translateY(-4px);
+      border-color: #38bdf8;
+      box-shadow: 0 12px 30px rgba(6, 182, 212, 0.3);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .comp-icon-box {
+      width: 70px;
+      height: 70px;
+      background: rgba(2, 6, 23, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      border-radius: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      shrink: 0;
+      position: relative;
+    }
+
+    .comp-icon-box svg {
+      width: 48px;
+      height: 48px;
+    }
+
+    .comp-meta h3 {
+      font-size: 1rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.2;
+    }
+
+    .comp-meta .model-no {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--cyan);
+      margin-top: 0.2rem;
+    }
+
+    .comp-role {
+      font-size: 0.75rem;
+      color: #cbd5e1;
+      line-height: 1.4;
+      margin-bottom: 1rem;
+      background: rgba(2, 6, 23, 0.5);
+      padding: 0.5rem 0.75rem;
+      border-radius: 0.5rem;
+      border-left: 3px solid var(--blue);
+    }
+
+    /* Electrical Specs Badges */
+    .specs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      background: rgba(2, 6, 23, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+    }
+
+    .spec-pill {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .spec-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .spec-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      font-weight: 700;
+      margin-top: 0.15rem;
+    }
+
+    .spec-value.volts { color: #facc15; }  /* Yellow */
+    .spec-value.amps  { color: #4ade80; }  /* Green */
+
+    .tag-ribbon {
+      position: absolute;
+      top: 0;
+      right: 0;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      border-bottom-left-radius: 0.75rem;
+      border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* Footer Specs Summary */
+    .poster-footer {
+      border-top: 2px solid rgba(56, 189, 248, 0.3);
+      padding-top: 1.5rem;
+      margin-top: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      font-size: 0.8rem;
+      color: #94a3b8;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        background: #fff !important;
+        color: #000 !important;
+        padding: 0 !important;
+      }
+      .poster-container {
+        border: none !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+        padding: 0 !important;
+      }
+      .btn-group { display: none !important; }
+      .comp-card {
+        background: #f8fafc !important;
+        color: #000 !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+        page-break-inside: avoid;
+      }
+      .comp-meta h3 { color: #0f172a !important; }
+      .comp-role { background: #e2e8f0 !important; color: #1e293b !important; }
+      .specs-grid { background: #f1f5f9 !important; border: 1px solid #cbd5e1 !important; }
+      .spec-value.volts { color: #b45309 !important; }
+      .spec-value.amps { color: #15803d !important; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="poster-container">
+
+    <!-- POSTER HEADER -->
+    <header class="poster-header">
+      <div class="title-block">
+        <h1>GUARDIAN SMART HELMET</h1>
+        <p>HARDWARE BILL OF MATERIALS & ELECTRICAL SPECIFICATIONS POSTER</p>
+      </div>
+
+      <div class="btn-group">
+        <a href="simulation-3d.html" class="nav-btn">
+          <i class="fa-solid fa-cube"></i> Open 3D Simulation
+        </a>
+        <button onclick="window.print()" class="print-btn">
+          <i class="fa-solid fa-print"></i> Print / Save PDF Poster
+        </button>
+      </div>
+    </header>
+
+    <!-- HIGH-RESOLUTION POSTER GRAPHIC -->
+    <div style="margin-bottom: 2rem; border-radius: 1rem; overflow: hidden; border: 2px solid rgba(56, 189, 248, 0.4); box-shadow: 0 10px 30px rgba(0,0,0,0.7); text-align: center; background: #000;">
+      <a href="img/hardware_component_poster.jpg" target="_blank" title="Click to view full high-resolution poster">
+        <img src="img/hardware_component_poster.jpg" alt="Guardian Smart Helmet Hardware Component Specifications Poster" style="width: 100%; max-height: 800px; object-fit: contain; display: block; margin: 0 auto;">
+      </a>
+      <div style="padding: 0.6rem; background: rgba(15, 23, 42, 0.9); font-size: 0.75rem; color: #38bdf8; font-family: 'JetBrains Mono', monospace;">
+        <i class="fa-solid fa-magnifying-glass-plus"></i> Click image above to open full-resolution poster graphic &bull; <a href="img/hardware_component_poster.jpg" download="Guardian_Hardware_Specifications_Poster.jpg" style="color: #4ade80; font-weight: bold; text-decoration: underline; margin-left: 0.5rem;"><i class="fa-solid fa-download"></i> Download Poster Image (JPG)</a>
+      </div>
+    </div>
+
+    <!-- SECTION 1: HELMET TRANSMITTER UNIT -->
+    <div class="subsystem-title">
+      <i class="fa-solid fa-helmet-safety"></i> Subsystem A: Wearable Helmet Transmitter Unit
+    </div>
+
+    <div class="grid-container">
+      
+      <!-- 1. ESP32 DevKit V1 (Helmet MCU) -->
+      <div class="comp-card">
+        <div class="tag-ribbon">NODE 1: TRANSMITTER</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of ESP32 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="25" y="10" width="50" height="80" rx="4" fill="#09090b" stroke="#38bdf8" stroke-width="2"/>
+              <rect x="35" y="18" width="30" height="26" rx="2" fill="#d1d5db" />
+              <rect x="42" y="5" width="16" height="8" rx="2" fill="#94a3b8" />
+              <circle cx="32" cy="78" r="3" fill="#ef4444" />
+              <circle cx="68" cy="78" r="3" fill="#3b82f6" />
+              <!-- Pins -->
+              <rect x="18" y="15" width="7" height="3" fill="#f59e0b"/>
+              <rect x="18" y="22" width="7" height="3" fill="#f59e0b"/>
+              <rect x="18" y="29" width="7" height="3" fill="#f59e0b"/>
+              <rect x="18" y="36" width="7" height="3" fill="#f59e0b"/>
+              <rect x="18" y="43" width="7" height="3" fill="#f59e0b"/>
+              <rect x="75" y="15" width="7" height="3" fill="#f59e0b"/>
+              <rect x="75" y="22" width="7" height="3" fill="#f59e0b"/>
+              <rect x="75" y="29" width="7" height="3" fill="#f59e0b"/>
+              <rect x="75" y="36" width="7" height="3" fill="#f59e0b"/>
+              <rect x="75" y="43" width="7" height="3" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>ESP32 DevKit V1 (30-Pin)</h3>
+            <div class="model-no">ESP-WROOM-32 | Xtensa Dual-Core</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Samples all helmet safety sensors at 100Hz and transmits instantaneous zero-latency packets over ESP-NOW (&lt;18ms).
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">5.0V VIN / 3.3V Logic</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">80mA typ / 350mA peak</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. MQ-3 Alcohol Breathalyzer -->
+      <div class="comp-card">
+        <div class="tag-ribbon">CHIN GUARD</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of MQ-3 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="20" y="20" width="60" height="65" rx="4" fill="#1e3a8a" stroke="#60a5fa" stroke-width="2"/>
+              <circle cx="50" cy="50" r="22" fill="#94a3b8" stroke="#cbd5e1" stroke-width="2" stroke-dasharray="3,3"/>
+              <circle cx="50" cy="50" r="14" fill="#64748b"/>
+              <rect x="30" y="75" width="10" height="8" fill="#3b82f6"/>
+              <!-- 4 Pins -->
+              <rect x="30" y="87" width="4" height="8" fill="#f59e0b"/>
+              <rect x="42" y="87" width="4" height="8" fill="#f59e0b"/>
+              <rect x="54" y="87" width="4" height="8" fill="#f59e0b"/>
+              <rect x="66" y="87" width="4" height="8" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>MQ-3 Alcohol Sensor</h3>
+            <div class="model-no">Tin Dioxide (SnO2) Breathalyzer</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Heats SnO2 ceramic coil to 200°C; detects breath alcohol molecules. Immobilizes starter if ADC &ge; 800.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">5.0V DC &plusmn;0.1V</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">150mA (Heater Active)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. GY-521 MPU-6050 (Crash Sensor) -->
+      <div class="comp-card">
+        <div class="tag-ribbon">TOP CROWN</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of MPU-6050 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="20" y="20" width="60" height="60" rx="4" fill="#1e40af" stroke="#93c5fd" stroke-width="2"/>
+              <rect x="38" y="38" width="24" height="24" rx="2" fill="#0f172a"/>
+              <!-- Axis arrows -->
+              <line x1="50" y1="50" x2="50" y2="28" stroke="#ef4444" stroke-width="2" marker-end="url(#arrow)"/>
+              <line x1="50" y1="50" x2="72" y2="50" stroke="#10b981" stroke-width="2"/>
+              <!-- Pins -->
+              <circle cx="28" cy="72" r="2.5" fill="#f59e0b"/>
+              <circle cx="37" cy="72" r="2.5" fill="#f59e0b"/>
+              <circle cx="46" cy="72" r="2.5" fill="#f59e0b"/>
+              <circle cx="55" cy="72" r="2.5" fill="#f59e0b"/>
+              <circle cx="64" cy="72" r="2.5" fill="#f59e0b"/>
+              <circle cx="73" cy="72" r="2.5" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>GY-521 MPU-6050 (6-DoF)</h3>
+            <div class="model-no">3-Axis Accel + 3-Axis Gyro (I2C)</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Calculates vector magnitude G = &radic;(ax&sup2;+ay&sup2;+az&sup2;). Triggers zero-delay SOS if impact &ge; 4.0G.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.3V – 5.0V DC</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">3.8mA (Ultra Low-Power)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. TCRT5000 IR Wear Sensor -->
+      <div class="comp-card">
+        <div class="tag-ribbon">FOREHEAD LEVEL</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of TCRT5000 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="25" y="15" width="50" height="70" rx="4" fill="#1e3a8a" stroke="#60a5fa" stroke-width="2"/>
+              <!-- Emitter (Blue/Clear) & Receiver (Black) -->
+              <rect x="33" y="25" width="14" height="22" rx="3" fill="#38bdf8" stroke="#fff" stroke-width="1"/>
+              <rect x="53" y="25" width="14" height="22" rx="3" fill="#09090b" stroke="#64748b" stroke-width="1"/>
+              <rect x="42" y="58" width="16" height="12" rx="2" fill="#0284c7"/>
+              <!-- Pins -->
+              <rect x="35" y="87" width="4" height="8" fill="#f59e0b"/>
+              <rect x="48" y="87" width="4" height="8" fill="#f59e0b"/>
+              <rect x="61" y="87" width="4" height="8" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>TCRT5000 Optical IR Sensor</h3>
+            <div class="model-no">950nm Infrared Diode + LM393</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Non-contact skin/head proximity reflection check. Outputs clean LOW (0V) only when helmet is securely on head.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.3V – 5.0V DC</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">15mA – 20mA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. TP4056 + 18650 Battery Subsystem -->
+      <div class="comp-card">
+        <div class="tag-ribbon">LATERAL FLANK</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of TP4056 & 18650 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="15" y="20" width="42" height="60" rx="3" fill="#065f46" stroke="#34d399" stroke-width="1.5"/>
+              <rect x="27" y="14" width="18" height="6" rx="2" fill="#cbd5e1"/>
+              <!-- Battery cylinder -->
+              <rect x="64" y="16" width="22" height="68" rx="6" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5"/>
+              <rect x="71" y="11" width="8" height="5" rx="1" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>18650 Li-ion + TP4056 Type-C</h3>
+            <div class="model-no">3.7V 2600mAh + DW01A Protection</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Lightweight wearable power source. Safe 1A CC/CV USB-C charging with over-discharge cut-off at &lt; 2.5V.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.7V Nom (4.2V Max)</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CAPACITY / AMPS</span>
+            <span class="spec-value amps">2600mAh / 1.0A Charge</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. MT3608 DC-DC Step-Up Booster -->
+      <div class="comp-card">
+        <div class="tag-ribbon">HELMET POWER RAIL</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <!-- SVG of MT3608 -->
+            <svg viewBox="0 0 100 100">
+              <rect x="18" y="25" width="64" height="50" rx="3" fill="#1e3a8a" stroke="#60a5fa" stroke-width="1.5"/>
+              <circle cx="40" cy="50" r="14" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+              <rect x="60" y="38" width="14" height="24" rx="2" fill="#facc15" stroke="#ca8a04"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>MT3608 DC-DC Step-Up Booster</h3>
+            <div class="model-no">1.2MHz High-Efficiency Boost</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Steps up 3.7V battery voltage to a regulated 5.0V rail to power the MQ-3 alcohol heater and ESP32 VIN.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.7V In &rarr; 5.0V Regulated</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">MAX OUTPUT (A)</span>
+            <span class="spec-value amps">2.0A Maximum</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- SECTION 2: BIKE RECEIVER & ACTUATOR UNIT -->
+    <div class="subsystem-title">
+      <i class="fa-solid fa-motorcycle"></i> Subsystem B: Motorcycle Receiver & Actuator Interlock
+    </div>
+
+    <div class="grid-container">
+
+      <!-- 7. ESP32 DevKit V1 (Bike Receiver) -->
+      <div class="comp-card">
+        <div class="tag-ribbon">NODE 2: RECEIVER &amp; BLE</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <rect x="25" y="10" width="50" height="80" rx="4" fill="#09090b" stroke="#38bdf8" stroke-width="2"/>
+              <rect x="35" y="18" width="30" height="26" rx="2" fill="#d1d5db" />
+              <rect x="42" y="5" width="16" height="8" rx="2" fill="#94a3b8" />
+              <circle cx="32" cy="78" r="3" fill="#10b981" />
+              <circle cx="68" cy="78" r="3" fill="#3b82f6" />
+              <!-- BLE waves -->
+              <path d="M50 55 Q 60 62 50 70" fill="none" stroke="#38bdf8" stroke-width="2"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>ESP32 DevKit V1 (Bike Unit)</h3>
+            <div class="model-no">ESP-NOW RX + BLE 4.2 GATT Server</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Receives helmet telemetry over ESP-NOW, drives the 0.96" OLED HUD and 5V Relay, and streams BLE data to phone.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">5.0V VIN / 3.3V Logic</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">120mA typ / 350mA peak</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8. 0.96" I2C OLED Display -->
+      <div class="comp-card">
+        <div class="tag-ribbon">CONSOLE HUD</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <rect x="15" y="20" width="70" height="60" rx="4" fill="#1e3a8a" stroke="#60a5fa" stroke-width="1.5"/>
+              <rect x="20" y="25" width="60" height="42" fill="#020617" stroke="#38bdf8" stroke-width="1"/>
+              <text x="24" y="38" fill="#38bdf8" font-size="8" font-family="monospace">&gt;&gt; GUARDIAN</text>
+              <text x="24" y="52" fill="#4ade80" font-size="7" font-family="monospace">WORN [OK]</text>
+              <!-- 4 pins -->
+              <rect x="36" y="73" width="4" height="10" fill="#f59e0b"/>
+              <rect x="44" y="73" width="4" height="10" fill="#f59e0b"/>
+              <rect x="52" y="73" width="4" height="10" fill="#f59e0b"/>
+              <rect x="60" y="73" width="4" height="10" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>0.96" I2C OLED Display</h3>
+            <div class="model-no">SSD1306 | 128x64 Pixels (4-Pin)</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Displays real-time helmet connection status, breath alcohol ADC, impact G-Force, and ignition status to the rider.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.3V – 5.0V DC</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">20mA (All Pixels Lit)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 9. 5V 1-Channel Optocoupler Relay -->
+      <div class="comp-card">
+        <div class="tag-ribbon">STARTER INTERLOCK</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <rect x="18" y="20" width="64" height="60" rx="4" fill="#1e3a8a" stroke="#60a5fa" stroke-width="1.5"/>
+              <rect x="25" y="28" width="50" height="34" rx="2" fill="#2563eb"/>
+              <text x="32" y="48" fill="#fff" font-size="9" font-weight="bold">SONGLE</text>
+              <rect x="22" y="68" width="56" height="12" rx="2" fill="#047857"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>5V Optocoupler Relay Module</h3>
+            <div class="model-no">SRD-05VDC-SL-C (Active HIGH)</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Galvanically isolates the 3.3V ESP32 from the 12V starter motor. Disables ignition if helmet is off, rider is drunk, or after a crash.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">COIL VOLTAGE (V)</span>
+            <span class="spec-value volts">5.0V DC</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">COIL / CONTACT (A)</span>
+            <span class="spec-value amps">70mA Coil / 10A 250VAC</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 10. LM2596 DC-DC Buck Converter -->
+      <div class="comp-card">
+        <div class="tag-ribbon">BIKE POWER STEP-DOWN</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <rect x="18" y="22" width="64" height="56" rx="3" fill="#1e3a8a" stroke="#60a5fa" stroke-width="1.5"/>
+              <circle cx="38" cy="50" r="16" fill="#0f172a" stroke="#ca8a04" stroke-width="3"/>
+              <rect x="62" y="32" width="16" height="14" rx="2" fill="#09090b"/>
+              <rect x="62" y="52" width="14" height="18" fill="#facc15"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>LM2596 DC-DC Buck Converter</h3>
+            <div class="model-no">Step-Down Power Regulator Module</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Steps down motorcycle 12V battery input to regulated 5.0V 2A to power the ESP32 receiver, OLED, and relay coil.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">12V In &rarr; 5.0V Output</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">OUTPUT CURRENT (A)</span>
+            <span class="spec-value amps">2.0A Continuous (3A Peak)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 11. DC Geared Motor & Wheel Assembly -->
+      <div class="comp-card">
+        <div class="tag-ribbon">ENGINE SIMULATOR</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <rect x="15" y="35" width="40" height="30" rx="3" fill="#facc15" stroke="#ca8a04" stroke-width="1.5"/>
+              <!-- Wheel -->
+              <circle cx="70" cy="50" r="24" fill="#18181b" stroke="#71717a" stroke-width="3"/>
+              <circle cx="70" cy="50" r="12" fill="#facc15"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>DC Geared Motor &amp; Wheel</h3>
+            <div class="model-no">3V–6V BO Motor (or 12V 300 RPM)</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Simulates the vehicle starter/engine. Rotates when relay closes; stops immediately when ignition locks or on crash.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.0V – 6.0V (or 12V DC)</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">OPERATING AMPS (A)</span>
+            <span class="spec-value amps">150mA – 350mA Loaded</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 12. 5V Active Piezo Buzzer -->
+      <div class="comp-card">
+        <div class="tag-ribbon">AUDIO ALARM</div>
+        <div class="card-top">
+          <div class="comp-icon-box">
+            <svg viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="28" fill="#18181b" stroke="#64748b" stroke-width="2"/>
+              <circle cx="50" cy="50" r="8" fill="#09090b" stroke="#ef4444" stroke-width="1.5"/>
+              <rect x="42" y="78" width="4" height="12" fill="#f59e0b"/>
+              <rect x="54" y="78" width="4" height="12" fill="#f59e0b"/>
+            </svg>
+          </div>
+          <div class="comp-meta">
+            <h3>5V Active Piezo Buzzer</h3>
+            <div class="model-no">KY-012 Continuous Tone Alarm</div>
+          </div>
+        </div>
+        <div class="comp-role">
+          Audible alarm beeper. Emits continuous alarm when alcohol is detected or during 3-second post-crash abort window.
+        </div>
+        <div class="specs-grid">
+          <div class="spec-pill">
+            <span class="spec-label">VOLTAGE (V)</span>
+            <span class="spec-value volts">3.3V – 5.0V DC</span>
+          </div>
+          <div class="spec-pill">
+            <span class="spec-label">CURRENT (A)</span>
+            <span class="spec-value amps">25mA – 30mA Active</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- POSTER FOOTER / SUMMARY SPECS -->
+    <footer class="poster-footer">
+      <div>
+        <strong>TOTAL SYSTEM POWER:</strong> Helmet Unit: ~1.25W (3.7V Li-ion boosted to 5V) | Bike Unit: ~2.1W (12V vehicle battery)
+      </div>
+      <div>
+        <strong>WIRELESS PROTOCOLS:</strong> ESP-NOW Broadcast (&lt;18ms latency) &bull; BLE 4.2 GATT Telemetry Server
+      </div>
+    </footer>
+
+  </div>
+
+</body>
+</html>

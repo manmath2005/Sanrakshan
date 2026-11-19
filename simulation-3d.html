@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Guardian — 3D CAD & Digital-Twin Motorcycle Simulation</title>
+
+  <!-- Primary Meta Tags -->
+  <meta name="description" content="Interactive 3D CAD and Digital-Twin simulation of the Guardian Smart Helmet platform: Pre-ride safety interlock, exploded hardware inspection, and realistic physics-driven motorcycle ride.">
+  <link rel="icon" type="image/png" href="img/guardian_logo.png">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom 3D Simulation Stylesheet -->
+  <link rel="stylesheet" href="css/simulation-3d.css">
+</head>
+<body>
+
+  <!-- 3D WebGL Canvas Layer -->
+  <div id="canvas-container"></div>
+
+  <!-- 3D Hotspot Hover Tooltip -->
+  <div id="cad-tooltip"></div>
+
+  <!-- HUD Telemetry & User Interface Overlay -->
+  <div id="hud-container">
+
+    <!-- 1. TOP NAVIGATION HEADER -->
+    <header class="sim-header">
+      <div class="brand-section">
+        <img src="img/guardian_logo.png" alt="Guardian Logo" class="brand-logo" onerror="this.src='https://via.placeholder.com/40x40/0284c7/ffffff?text=G'">
+        <div>
+          <h1 class="brand-title">GUARDIAN 3D</h1>
+          <p class="brand-tagline">"Your Silent Co-Rider for Life & Safety."</p>
+        </div>
+      </div>
+
+      <!-- Camera Viewpoint Presets -->
+      <nav class="camera-modes-bar">
+        <button id="btn-cam-ride" class="cam-btn active-tab" title="Third-person ride view">
+          <i class="fa-solid fa-motorcycle"></i>
+          <span>Ride View</span>
+        </button>
+        <button id="btn-cam-helmet" class="cam-btn" title="Inspect helmet on rider">
+          <i class="fa-solid fa-helmet-safety"></i>
+          <span>Helmet View</span>
+        </button>
+        <button id="btn-cam-cad" class="cam-btn" title="Exploded CAD assembly inspection">
+          <i class="fa-solid fa-cubes-stacked"></i>
+          <span>CAD Exploded View</span>
+        </button>
+      </nav>
+
+      <!-- Navigation & Audio Actions -->
+      <div class="header-actions">
+        <a href="hardware-poster.html" class="nav-link-btn" title="View Hardware Bill of Materials & Voltage/Ampere Poster">
+          <i class="fa-solid fa-microchip text-emerald-400"></i>
+          <span>Hardware Poster</span>
+        </a>
+        <a href="index.html" class="nav-link-btn" title="Back to 2D Live GPS Map Dashboard">
+          <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
+          <span>Live GPS Dashboard</span>
+        </a>
+        <button id="btn-toggle-audio" class="icon-btn" title="Toggle Synthesized Engine & Alarm Audio">
+          <i id="audio-icon" class="fa-solid fa-volume-high text-cyan-400"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. TELEMETRY GAUGES & SAFETY STATUS -->
+    <div class="hud-telemetry-layer">
+      <!-- Left: Speedometer & RPM Cluster -->
+      <div class="gauge-cluster">
+        <div class="speedo-dial">
+          <div class="speedo-needle" id="speedo-needle"></div>
+          <div class="dial-center">
+            <div class="speed-value" id="hud-speed-val">0</div>
+            <div class="speed-unit">KM/H</div>
+          </div>
+        </div>
+
+        <div class="metrics-column">
+          <div class="metric-row">
+            <span class="metric-label">ENGINE RPM:</span>
+            <span class="metric-value text-cyan-400" id="hud-rpm-val">0</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">GEAR:</span>
+            <span class="metric-value text-amber-400" id="hud-gear-val">N</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">G-FORCE:</span>
+            <span class="metric-value text-purple-400" id="hud-gforce-val">1.00 G</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Three-Tier Safety Interlock Badges -->
+      <div class="safety-status-deck">
+        <div class="status-badge" id="badge-helmet-status">
+          <span class="status-dot red"></span> HELMET: OFF [LOCK]
+        </div>
+        <div class="status-badge" id="badge-alcohol-status">
+          <span class="status-dot green"></span> ALCOHOL: SOBER (195)
+        </div>
+        <div class="status-badge" id="badge-relay-status">
+          <span class="status-dot red"></span> RELAY: LOCKED 🛑
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. BOTTOM CONTROL DOCK -->
+    <footer class="control-dock">
+      <!-- Pre-Ride Interactive Actions -->
+      <div class="preride-bar">
+        <button id="btn-wear-helmet" class="action-btn" title="Put on helmet (optical wear sensor)">
+          <i class="fa-solid fa-helmet-safety"></i>
+          <span>Put On Helmet</span>
+        </button>
+
+        <button id="btn-blow-alcohol" class="action-btn" title="Simulate breathalyzer test">
+          <i class="fa-solid fa-wind"></i>
+          <span>Breathe Test</span>
+        </button>
+
+        <button id="btn-start-engine" class="action-btn" title="Engage starter relay and start engine">
+          <i class="fa-solid fa-power-off"></i>
+          <span>Start Engine</span>
+        </button>
+
+        <button id="btn-sim-crash" class="action-btn btn-danger" title="Simulate high-impact accident (4.8G)">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Crash (4.8G SOS!)</span>
+        </button>
+
+        <!-- CAD Explosion Slider Panel (Visible in CAD View) -->
+        <div id="cad-controls-panel" class="cad-controls-panel">
+          <span class="slider-label">EXPLODE:</span>
+          <input type="range" id="cad-explode-slider" min="0" max="100" value="0" class="w-32 h-2 accent-cyan-400 cursor-pointer">
+        </div>
+      </div>
+
+      <!-- On-Screen Touch Driving Controls for Mobile / Mouse -->
+      <div class="touch-driving-cluster">
+        <div></div>
+        <button id="btn-drive-throttle" class="touch-btn" title="Throttle (W / Up)">
+          <i class="fa-solid fa-chevron-up"></i>
+        </button>
+        <div></div>
+
+        <button id="btn-drive-left" class="touch-btn" title="Steer Left (A / Left)">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <button id="btn-drive-brake" class="touch-btn" title="Brake (S / Down)">
+          <i class="fa-solid fa-chevron-down"></i>
+        </button>
+        <button id="btn-drive-right" class="touch-btn" title="Steer Right (D / Right)">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- INTERACTIVE COMPONENT LAB MODAL -->
+  <div id="component-modal"></div>
+
+  <!-- EMERGENCY SOS ACCIDENT MODAL -->
+  <div id="sos-alert-modal">
+    <div class="sos-card">
+      <div class="text-rose-400 text-3xl mb-2"><i class="fa-solid fa-triangle-exclamation animate-bounce"></i></div>
+      <h2 class="text-xl font-black text-white">EMERGENCY CRASH DETECTED!</h2>
+      <p class="text-xs text-rose-300 mt-1">Impact G-Force exceeded 4.0G safety threshold.</p>
+
+      <div class="sos-countdown-circle" id="sos-countdown">3</div>
+
+      <p id="sos-status-text" class="text-xs text-slate-200 leading-relaxed mt-2">
+        Initiating automated hands-free call and single-part emergency SMS with live GPS coordinates to all registered contacts...
+      </p>
+
+      <div class="mt-4 flex gap-3">
+        <button id="btn-abort-sos" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs border border-slate-600 transition-all">
+          <i class="fa-solid fa-ban mr-1"></i> Cancel False Alarm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3D Scripts Loading (Local + CDN Fallback) -->
+  <script src="js/simulation-3d/three.min.js"></script>
+  <script>
+    if (typeof THREE === 'undefined') {
+      document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+    }
+  </script>
+  <script src="js/simulation-3d/OrbitControls.js"></script>
+  <script>
+    if (typeof THREE !== 'undefined' && typeof THREE.OrbitControls === 'undefined') {
+      document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>');
+    }
+  </script>
+
+  <!-- Simulation Logic Modules -->
+  <script src="js/simulation-3d/audio-synthesizer.js"></script>
+  <script src="js/simulation-3d/bike-physics.js"></script>
+  <script src="js/simulation-3d/cad-models.js"></script>
+  <script src="js/simulation-3d/environment-engine.js"></script>
+  <script src="js/simulation-3d/component-lab.js"></script>
+  <script src="js/simulation-3d/simulation-app.js"></script>
+</body>
+</html>
