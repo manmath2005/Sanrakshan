@@ -68,7 +68,10 @@ class RealtimeSyncManager {
     if (this.firebaseReady && this.db) {
       this._attachFirebaseListeners();
     } else {
-      // Fallback: poll Vercel REST API every 800ms
+      // Immediate instant fetch + 350ms high-speed polling for zero-delay hardware telemetry
+      const base = VERCEL_API_BASE || '';
+      this._fetchRestTelemetry(base);
+      this._fetchRestSosHistory(base);
       this._startRestPolling();
     }
 
@@ -121,7 +124,7 @@ class RealtimeSyncManager {
   }
 
   // -------------------------------------------------------------------
-  // REST API FALLBACK PATH (when Firebase SDK not configured)
+  // REST API FALLBACK PATH (high-speed 350ms polling for live hardware sync)
   // -------------------------------------------------------------------
   _startRestPolling() {
     if (this.pollInterval) clearInterval(this.pollInterval);
@@ -129,8 +132,8 @@ class RealtimeSyncManager {
     this.pollInterval = setInterval(() => {
       this._fetchRestTelemetry(base);
       this._fetchRestSosHistory(base);
-    }, 800);
-    console.log('[RealtimeSync] REST fallback polling at', base || 'relative /api');
+    }, 350);
+    console.log('[RealtimeSync] High-speed REST polling active (350ms interval) at', base || 'relative /api');
   }
 
   async _fetchRestTelemetry(base = '') {

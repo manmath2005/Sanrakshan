@@ -165,14 +165,14 @@ export function updateTelemetry(telemetry, riderProfile) {
       gpsBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span>📍 REAL PHONE GPS (LIVE)</span>';
     } else {
       gpsBadge.className = 'px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1';
-      gpsBadge.innerHTML = '<i class="fa-solid fa-gamepad text-[9px]"></i> <span>🎮 DEMO SIMULATION (OPTIONAL)</span>';
+      gpsBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> <span>📍 LIVE HARDWARE SENSORS & GPS</span>';
     }
   }
 
   const mapAccuracyText = document.getElementById('map-accuracy-text');
   if (mapAccuracyText) {
     const acc = loc.accuracyMeters ? Number(loc.accuracyMeters).toFixed(1) : '3.0';
-    mapAccuracyText.textContent = isRealGps ? `Hardware GPS Accuracy: ±${acc}m` : `Simulated Route Accuracy: ±${acc}m`;
+    mapAccuracyText.textContent = isRealGps ? `Hardware GPS Accuracy: ±${acc}m` : `Hardware GPS Accuracy: ±${acc}m`;
   }
 
   // 4. Update Last Known Location: If no crash logged yet, use live coordinates & timestamp
@@ -184,25 +184,29 @@ export function updateTelemetry(telemetry, riderProfile) {
     });
   }
 
-  // 5. Helmet Wear Status
+  // 5. Helmet Wear Status (IR Sensor)
+  const cardHelmet = document.getElementById('card-helmet');
   const badgeHelmet = document.getElementById('badge-helmet');
   const interlockText = document.getElementById('helmet-interlock-text');
   if (badgeHelmet && interlockText) {
     if (sensors.helmetWorn) {
-      badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max';
-      badgeHelmet.innerHTML = '<i class="fa-solid fa-shield-halved text-[11px]"></i> Worn & Locked';
-      interlockText.textContent = 'Authorized';
-      interlockText.className = 'text-emerald-400 font-semibold';
+      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/40 bg-emerald-950/20 shadow-md shadow-emerald-950/30 transition-all';
+      badgeHelmet.className = 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 w-max';
+      badgeHelmet.innerHTML = '<i class="fa-solid fa-hard-hat text-[11px] text-emerald-400"></i> HELMET WORN (RIDER DETECTED)';
+      interlockText.textContent = 'IR Sensor: Rider Verified ✅';
+      interlockText.className = 'text-emerald-400 font-bold';
     } else {
-      badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5 w-max';
-      badgeHelmet.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[11px]"></i> NOT WORN';
-      interlockText.textContent = 'IGNITION LOCKED';
-      interlockText.className = 'text-red-400 font-semibold';
+      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/50 bg-red-950/25 shadow-md shadow-red-950/40 animate-pulse transition-all';
+      badgeHelmet.className = 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1.5 w-max';
+      badgeHelmet.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[11px] text-red-400"></i> NO HELMET (RIDER ABSENT)';
+      interlockText.textContent = 'IR Sensor: Ignition Locked 🛑';
+      interlockText.className = 'text-red-400 font-bold';
     }
   }
 
   // 6. Alcohol BAC & Interlock Decision (Matching Guardian APK 800 ADC threshold)
-  const alcoholVal = sensors.alcoholAdc || 0;
+  const cardAlcohol = document.getElementById('card-alcohol');
+  const alcoholVal = (sensors.alcoholAdc !== undefined) ? sensors.alcoholAdc : 0;
   const isAlcoholDrunk = alcoholVal >= 800 || sensors.alcoholStatus === 'DRUNK' || String(sensors.alcoholStatus || '').includes('LOCKED');
   const isAlcoholSafe = !isAlcoholDrunk;
 
@@ -210,11 +214,20 @@ export function updateTelemetry(telemetry, riderProfile) {
   const alcoholBadge = document.getElementById('alcohol-status-badge');
   const alcoholProgress = document.getElementById('alcohol-progress');
   if (alcoholAdc && alcoholBadge && alcoholProgress) {
-    alcoholAdc.textContent = alcoholVal;
-    alcoholBadge.textContent = isAlcoholSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
-    alcoholBadge.className = isAlcoholSafe ? 'text-[10px] font-bold text-emerald-400 uppercase' : 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
-    alcoholProgress.style.width = `${Math.min(100, (alcoholVal / 1600) * 100)}%`;
-    alcoholProgress.className = isAlcoholSafe ? 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300' : 'bg-red-500 h-1.5 rounded-full transition-all duration-300';
+    alcoholAdc.textContent = `${alcoholVal} ADC`;
+    if (isAlcoholSafe) {
+      if (cardAlcohol) cardAlcohol.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/40 bg-emerald-950/20 transition-all';
+      alcoholBadge.textContent = '0.00% SOBER ✅';
+      alcoholBadge.className = 'text-[10px] font-bold text-emerald-400 uppercase';
+      alcoholProgress.style.width = `${Math.min(100, Math.max(8, (alcoholVal / 1600) * 100))}%`;
+      alcoholProgress.className = 'bg-emerald-500 h-1.5 rounded-full transition-all duration-200';
+    } else {
+      if (cardAlcohol) cardAlcohol.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/60 bg-red-950/30 shadow-lg shadow-red-950/50 animate-pulse transition-all';
+      alcoholBadge.textContent = `🛑 DRUNK DETECTED (${alcoholVal} ADC)`;
+      alcoholBadge.className = 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
+      alcoholProgress.style.width = `${Math.min(100, (alcoholVal / 1600) * 100)}%`;
+      alcoholProgress.className = 'bg-red-500 h-1.5 rounded-full transition-all duration-200';
+    }
   }
 
   // 6b. Prominent Smart Ignition & Alcohol Interlock Card
@@ -225,16 +238,16 @@ export function updateTelemetry(telemetry, riderProfile) {
   const ignitionSubtext = document.getElementById('ignition-subtext');
   const alcoholInterlockStatus = document.getElementById('alcohol-interlock-status');
 
-  const isIgnitionUnlocked = sensors.ignitionRelay !== false && isAlcoholSafe && !alerts.isCrashDetected;
+  const isIgnitionUnlocked = sensors.helmetWorn && isAlcoholSafe && !alerts.isCrashDetected;
 
   if (cardIgnition && ignitionBadge) {
     if (isIgnitionUnlocked) {
-      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-emerald-500/30 bg-emerald-950/20 transition-all duration-300';
+      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-emerald-500/40 bg-emerald-950/20 shadow-md shadow-emerald-950/30 transition-all duration-300';
       if (ignitionIconBox) ignitionIconBox.className = 'w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg transition-all';
       if (ignitionIcon) ignitionIcon.className = 'fa-solid fa-key text-emerald-400';
       ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
       ignitionBadge.textContent = 'UNLOCKED ✅';
-      if (ignitionSubtext) ignitionSubtext.textContent = 'Safe to Ride — Ignition Circuit Active';
+      if (ignitionSubtext) ignitionSubtext.textContent = 'Safe to Ride — Helmet Worn & Rider Sober';
       if (alcoholInterlockStatus) {
         alcoholInterlockStatus.textContent = 'DISENGAGED (SAFE)';
         alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-emerald-400';
@@ -246,12 +259,18 @@ export function updateTelemetry(telemetry, riderProfile) {
       ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-500/20 text-red-400 border border-red-500/30';
       ignitionBadge.textContent = 'LOCKED 🛑';
       if (ignitionSubtext) {
-        ignitionSubtext.textContent = isAlcoholDrunk 
-          ? 'Engine Cut Off — High Breath Alcohol (>800 ADC) Detected!' 
-          : 'Engine Cut Off — Safety Interlock Engaged';
+        if (!sensors.helmetWorn) {
+          ignitionSubtext.textContent = 'Engine Cut Off — Rider Must Wear Helmet (IR Sensor Check)';
+        } else if (isAlcoholDrunk) {
+          ignitionSubtext.textContent = `Engine Cut Off — High Breath Alcohol (${alcoholVal} ADC >= 800) Detected!`;
+        } else if (alerts.isCrashDetected) {
+          ignitionSubtext.textContent = 'Engine Cut Off — Crash Incident Detected! Emergency SOS Triggered';
+        } else {
+          ignitionSubtext.textContent = 'Engine Cut Off — Safety Interlock Engaged';
+        }
       }
       if (alcoholInterlockStatus) {
-        alcoholInterlockStatus.textContent = isAlcoholDrunk ? 'ENGAGED (ENGINE LOCKED)' : 'LOCKED (SAFETY)';
+        alcoholInterlockStatus.textContent = isAlcoholDrunk ? 'ENGAGED (ENGINE LOCKED)' : (sensors.helmetWorn ? 'STANDBY' : 'NO HELMET');
         alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-red-400';
       }
     }

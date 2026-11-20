@@ -140,7 +140,7 @@
 
         <!-- Quick Demo Accounts -->
         <div class="pt-3 border-t border-slate-800 text-center">
-          <div class="text-[11px] text-slate-400 mb-2">Quick Demo Rider IDs:</div>
+          <div class="text-[11px] text-slate-400 mb-2">Registered Bike IDs:</div>
           <div class="flex justify-center gap-2">
             <button type="button" class="quick-id-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-all" data-id="BIKE-101">BIKE-101</button>
             <button type="button" class="quick-id-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-all" data-id="BIKE-102">BIKE-102</button>
@@ -186,11 +186,6 @@
         <span>Download Guardian APK</span>
       </a>
 
-      <a href="simulation-3d.html" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all" title="Launch 3D CAD & Digital-Twin Simulation">
-        <i class="fa-solid fa-cube text-white"></i>
-        <span>3D CAD Simulation</span>
-      </a>
-
       <a href="hardware-poster.html" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all" title="View Hardware Bill of Materials & Voltage/Ampere Poster">
         <i class="fa-solid fa-microchip text-white"></i>
         <span>Hardware Poster</span>
@@ -201,14 +196,9 @@
         <span>Share Live Link</span>
       </button>
 
-      <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800">
-        <button id="mode-viewer" class="px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1">
-          <i class="fa-solid fa-eye text-[10px]"></i> Family / Rental
-        </button>
-        <button id="mode-transmitter" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1">
-          <i class="fa-solid fa-satellite-dish text-[10px]"></i> Phone GPS
-        </button>
-        
+      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-semibold text-slate-200">
+        <i class="fa-solid fa-satellite text-cyan-400 text-xs"></i>
+        <span>Live IoT Stream</span>
       </div>
 
       <div id="cloud-status-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
@@ -396,12 +386,12 @@
         <!-- 1. Helmet Wear Status -->
         <div id="card-helmet" class="glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10">
           <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>Helmet Status</span>
+            <span class="font-semibold text-slate-300">IR Helmet Sensor</span>
             <i class="fa-solid fa-hard-hat text-emerald-400"></i>
           </div>
           <div class="my-1">
             <span id="badge-helmet" class="px-2 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max">
-              <i class="fa-solid fa-shield-halved text-[11px]"></i> Worn & Locked
+              <i class="fa-solid fa-shield-halved text-[11px]"></i> HELMET WORN (RIDER DETECTED)
             </span>
           </div>
           <div class="text-[10px] text-slate-400 flex items-center justify-between">
@@ -413,7 +403,7 @@
         <!-- 2. Alcohol BAC Meter -->
         <div id="card-alcohol" class="glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10">
           <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span>Breath Alcohol</span>
+            <span class="font-semibold text-slate-300">MQ-3 Alcohol Sensor</span>
             <i class="fa-solid fa-wine-glass-slash text-emerald-400"></i>
           </div>
           <div>

@@ -8,8 +8,6 @@ import { initMap, updateRiderLocation, centerOnRider, toggleTrail, switchBasemap
 import { updateTelemetry, renderSosHistoryList } from './telemetry-hud.js';
 import { initSafetyControls, triggerEmergencyAlert, dismissEmergencyAlert } from './safety-controls.js';
 import { syncManager } from './firebase-sync.js';
-import { startPhoneGpsBroadcaster, stopPhoneGpsBroadcaster } from './phone-transmitter.js';
-
 // Application State
 let currentRideId = '';
 let currentMode = 'viewer'; // 'viewer' | 'transmitter' | 'simulator'
@@ -250,46 +248,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 9. Mode Switcher (Viewer / Phone GPS / Demo Simulator)
-  const btnViewer = document.getElementById('mode-viewer');
-  const btnTransmitter = document.getElementById('mode-transmitter');
-
-  function setMode(mode) {
-    currentMode = mode;
-    [btnViewer, btnTransmitter].filter(Boolean).forEach(b => {
-      b.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1';
-    });
-
-    if (mode === 'viewer') {
-      if (btnViewer) btnViewer.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
-      stopPhoneGpsBroadcaster();
-      showToast('Viewer Mode: Listening for live bike data...');
-    } else if (mode === 'transmitter') {
-      if (btnTransmitter) btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
-      
-      const started = startPhoneGpsBroadcaster((phoneLoc) => {
-        const payload = {
-          timestamp: phoneLoc.timestamp,
-          location: phoneLoc,
-          sensors: {
-            helmetWorn: true,
-            alcoholAdc: 410,
-            alcoholStatus: 'SAFE',
-            gForceX: 0.1,
-            gForceY: 0.98,
-            gForceZ: 0.05,
-            totalG: 1.01,
-            vibrationLevel: 'NORMAL',
-            ignitionRelay: true
-          },
-          alerts: { isCrashDetected: false, isManualSosActive: false }
-        };
-        syncManager.publishTelemetry(payload, getRiderProfile(currentRideId));
-      });
-      if (started) showToast('Broadcasting live phone GPS location...');
-    }
-  }
-
-  if (btnViewer) btnViewer.addEventListener('click', () => setMode('viewer'));
-  if (btnTransmitter) btnTransmitter.addEventListener('click', () => setMode('transmitter'));
+    // 9. Pure Live IoT Hardware Listener
+  currentMode = 'viewer';
 });
