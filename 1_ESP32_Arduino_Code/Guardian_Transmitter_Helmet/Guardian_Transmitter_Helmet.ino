@@ -20,8 +20,8 @@
  * 4. Helmet Removed                  -> Buzzer is OFF
  * 
  * WIRELESS TRANSMISSION:
- * 1. Bluetooth Low Energy (BLE): Direct real-time link to Guardian APK (50ms rate)
- * 2. ESP-NOW Broadcast: Sub-millisecond radio link to Bike Receiver Ignition Relay
+ * 1. Bluetooth Low Energy (BLE): Direct real-time link to Guardian APK
+ * 2. ESP-NOW Unicast (MAC Paired): Dedicated radio link to Bike Receiver Ignition Relay
  * ============================================================================
  */
 
@@ -77,9 +77,13 @@ struct GuardianTelemetryPacket {
 
 GuardianTelemetryPacket currentPacket;
 
-// ESP-NOW Universal Broadcast Peer Configuration
+// ============================================================================
+// ESP-NOW UNICAST MAC PAIRING (RECEIVER ESP32 MAC ADDRESS)
+// Note: Each byte must be prefixed with 0x and separated by commas.
+// Receiver MAC: D4:E9:F4:84:B5:04
+// ============================================================================
 esp_now_peer_info_t peerInfo;
-uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+uint8_t receiverMAC[] = {0xD4, 0xE9, 0xF4, 0x84, 0xB5, 0x04};
 
 // BLE CONNECTION CALLBACKS
 class MyServerCallbacks: public BLEServerCallbacks {
@@ -162,12 +166,16 @@ void setup() {
   } else {
     Serial.println("✅ ESP-NOW Wireless Protocol Active.");
     memset(&peerInfo, 0, sizeof(peerInfo));
-    memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+    memcpy(peerInfo.peer_addr, receiverMAC, 6);
     peerInfo.channel = 0;  
     peerInfo.encrypt = false;
     
     if (esp_now_add_peer(&peerInfo) == ESP_OK) {
-      Serial.println("✅ Universal Broadcast Peer Registered for Bike Unit.");
+      Serial.printf("✅ Paired Bike Receiver MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                    receiverMAC[0], receiverMAC[1], receiverMAC[2],
+                    receiverMAC[3], receiverMAC[4], receiverMAC[5]);
+    } else {
+      Serial.println("❌ [ERROR] Failed to register Bike Receiver MAC peer!");
     }
   }
 
@@ -183,7 +191,7 @@ void setup() {
   delay(60);
   digitalWrite(BUZZER_PIN, LOW);
 
-  Serial.println("🚀 System Ready. Streaming live telemetry to APK & Bike Unit...\n");
+  Serial.println("🚀 System Ready. Streaming live telemetry to APK & Paired Bike Unit...\n");
 }
 
 void loop() {
@@ -278,14 +286,14 @@ void loop() {
   previousHelmetWorn = helmetWorn;
 
   // -------------------------------------------------------------
-  // 4. BROADCAST TELEMETRY TO BIKE RECEIVER (ESP-NOW)
+  // 4. SEND UNICAST TELEMETRY TO PAIRED BIKE RECEIVER (ESP-NOW)
   // -------------------------------------------------------------
   currentPacket.helmetWorn = helmetWorn;
   currentPacket.alcoholAdc = alcoholRaw;
   currentPacket.totalG = totalG;
   currentPacket.isCrashTriggered = sosTransmittedToApp;
 
-  esp_now_send(broadcastAddress, (uint8_t *) &currentPacket, sizeof(currentPacket));
+  esp_now_send(receiverMAC, (uint8_t *) &currentPacket, sizeof(currentPacket));
 
   // -------------------------------------------------------------
   // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK (BLE)
@@ -294,8 +302,12 @@ void loop() {
   if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 80)) {
     lastBleNotify = millis();
     char jsonBuffer[128];
+    // Put compact fields first so even if BLE MTU is 20 bytes, no data is ever lost:
     snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}",
+             "{\"h\":%d,\"a\":%d,\"c\":%d,\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}",
+             helmetWorn ? 1 : 0,
+             alcoholRaw,
+             sosTransmittedToApp ? 1 : 0,
              helmetWorn ? "true" : "false",
              alcoholRaw,
              totalG,
