@@ -496,6 +496,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     public void parseHelmetSensorData(String rawJson) {
         if (rawJson == null || rawJson.trim().isEmpty()) return;
         rawJson = rawJson.trim();
+        this.isBleConnected = true;
 
         try {
             boolean crash = false;
@@ -710,8 +711,9 @@ public class HelmetTrackingService extends Service implements LocationListener, 
             root.put("location", loc);
 
             JSONObject sens = new JSONObject();
-            // Ignition relay is strictly OFF unless motor running is explicitly confirmed
-            boolean isIgnitionActive = false;
+            // Ignition relay is strictly OFF unless motor running is explicitly confirmed:
+            // Helmet must be worn, alcohol sober, no crash, and BLE connected!
+            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 800) && !isCrash;
             sens.put("bleConnected", isBleConnected);
             sens.put("helmetWorn", isBleConnected && isHelmetWorn);
             sens.put("alcoholAdc", isBleConnected ? currentAlcohol : 0);

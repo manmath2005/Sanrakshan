@@ -137,15 +137,31 @@ public class HelmetBleGattCallback extends BluetoothGattCallback {
             byte[] data = characteristic.getValue();
             if (data != null && data.length > 0) {
                 String str = new String(data);
-                Log.d(TAG, "Initial telemetry read: " + str);
+                Log.d(TAG, "Telemetry read (legacy): " + str);
                 service.parseHelmetSensorData(str);
             }
+        }
+    }
+
+    public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, byte[] value, int status) {
+        if (status == BluetoothGatt.GATT_SUCCESS && value != null && value.length > 0) {
+            String str = new String(value);
+            Log.d(TAG, "Telemetry read (API 33+): " + str);
+            service.parseHelmetSensorData(str);
         }
     }
 
     @Override
     public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor, int status) {
         Log.i(TAG, "Descriptor write complete: status=" + status);
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            service.setBleConnected(true);
+            try {
+                if (descriptor != null && descriptor.getCharacteristic() != null) {
+                    gatt.readCharacteristic(descriptor.getCharacteristic());
+                }
+            } catch (SecurityException ignored) {}
+        }
     }
 
     @Override

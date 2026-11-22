@@ -99,9 +99,22 @@ class MyServerCallbacks: public BLEServerCallbacks {
       Serial.println("\n📱 [BLE] Guardian Phone/App Connected!");
     }
 
+    void onConnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) {
+      deviceConnected = true;
+      negotiatedMTU = 23;
+      Serial.println("\n📱 [BLE] Guardian Phone/App Connected! (Core 3.x callback)");
+    }
+
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       Serial.println("\n📱 [BLE] Phone Disconnected. Advertising restarted.");
+      delay(100);
+      pServer->getAdvertising()->start();
+    }
+
+    void onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) {
+      deviceConnected = false;
+      Serial.println("\n📱 [BLE] Phone Disconnected (Core 3.x callback). Advertising restarted.");
       delay(100);
       pServer->getAdvertising()->start();
     }
@@ -406,14 +419,12 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK / SITE (BLE @ 5Hz)
+  // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK / SITE (BLE @ 6Hz)
   // -------------------------------------------------------------
-  static unsigned long lastBleNotify = 0;
-  if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 200)) {
-    lastBleNotify = millis();
-    char jsonBuffer[140];
+  bool isClientConnected = deviceConnected || (pServer != NULL && pServer->getConnectedCount() > 0);
 
-    // Always include helmet, alcohol, G-force, and crash status
+  if (pCharacteristic != NULL) {
+    char jsonBuffer[140];
     snprintf(jsonBuffer, sizeof(jsonBuffer),
              "{\"h\":%d,\"a\":%d,\"g\":%.2f,\"c\":%d,\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}\n",
              helmetWorn ? 1 : 0,
@@ -425,8 +436,15 @@ void loop() {
              reportedG,
              sosTransmittedToApp ? "true" : "false");
 
+    // ALWAYS update characteristic value so any BLE Read returns live data!
     pCharacteristic->setValue((uint8_t*)jsonBuffer, strlen(jsonBuffer));
-    pCharacteristic->notify();
+
+    // Send notify if client is connected
+    static unsigned long lastBleNotify = 0;
+    if (isClientConnected && (millis() - lastBleNotify >= 150)) {
+      lastBleNotify = millis();
+      pCharacteristic->notify();
+    }
   }
 
   // -------------------------------------------------------------
@@ -445,7 +463,7 @@ void loop() {
                   totalG,
                   reportedG,
                   mpuStatus,
-                  deviceConnected ? "CONNECTED" : "WAITING");
+                  isClientConnected ? "CONNECTED" : "WAITING");
   }
 
   delay(20);
