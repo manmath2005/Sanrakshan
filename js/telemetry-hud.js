@@ -1,106 +1,7 @@
 /**
  * Telemetry HUD Controller
- * Updates gauges, sensor cards, Smart Ignition Interlock, SOS history feed, and Rider Profile.
- * Synchronized with the Guardian Android APK feature set.
+ * Updates gauges, sensor cards, SOS history feed, and Rider Profile.
  */
-
-// Cached latest crash event to keep Last Known Location anchored to the accident pin
-let cachedLatestCrash = null;
-
-/**
- * Format timestamp to full calendar date & 12-hour AM/PM time
- * Matches the Guardian APK format: "29 Sep 2026, 07:45:12 PM"
- */
-export function formatFullDateTime(ts) {
-  if (!ts) return 'Just now';
-  const d = new Date(ts);
-  if (isNaN(d.getTime())) return 'Just now';
-  const day = String(d.getDate()).padStart(2, '0');
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const month = monthNames[d.getMonth()];
-  const year = d.getFullYear();
-  let hours = d.getHours();
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12; // convert 0 to 12
-  const formattedHours = String(hours).padStart(2, '0');
-
-  return `${day} ${month} ${year}, ${formattedHours}:${minutes}:${seconds} ${ampm}`;
-}
-
-/**
- * Update the Last Known Location Card
- * Priority: If a crash event exists in SOS history, anchor coordinates and timestamp to that crash!
- * Otherwise, display the latest verified phone GPS ping.
- */
-export function updateLastKnownLocationCard(crashEvent, liveLoc) {
-  const card = document.getElementById('last-known-location-card');
-  const title = document.getElementById('last-known-title');
-  const badge = document.getElementById('last-known-badge');
-  const coords = document.getElementById('last-known-coords');
-  const tsElem = document.getElementById('last-seen-timestamp');
-  const navBtn = document.getElementById('btn-navigate-last-known');
-  const subtext = document.getElementById('last-known-subtext');
-
-  if (crashEvent) {
-    const lat = crashEvent.location ? crashEvent.location.latitude : (crashEvent.lat || 18.4529);
-    const lng = crashEvent.location ? crashEvent.location.longitude : (crashEvent.lng || 73.8553);
-    const ts = crashEvent.timestamp || Date.now();
-    const g = crashEvent.gForce ? Number(crashEvent.gForce).toFixed(1) : '4.0';
-
-    if (card) {
-      card.className = 'glass-card rounded-xl p-3.5 border border-red-500/50 bg-red-950/25 shadow-lg shadow-red-950/40 transition-all duration-300';
-    }
-    if (title) {
-      title.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-red-400 animate-pulse"></i> <span class="text-red-400">Crash Incident Location</span>';
-    }
-    if (badge) {
-      badge.className = 'text-[9px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-300 border border-red-500/40';
-      badge.textContent = `CRASH ${g}G`;
-    }
-    if (coords) {
-      coords.textContent = `${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E`;
-    }
-    if (tsElem) {
-      tsElem.textContent = formatFullDateTime(ts);
-    }
-    if (subtext) {
-      subtext.textContent = 'Incident Rescue Pin:';
-    }
-    if (navBtn) {
-      navBtn.href = `https://maps.google.com/?q=${lat},${lng}`;
-    }
-  } else if (liveLoc && liveLoc.latitude && liveLoc.longitude) {
-    const lat = liveLoc.latitude;
-    const lng = liveLoc.longitude;
-    const ts = liveLoc.timestamp || Date.now();
-
-    if (card) {
-      card.className = 'glass-card rounded-xl p-3.5 border border-amber-500/40 bg-amber-950/20 transition-all duration-300';
-    }
-    if (title) {
-      title.innerHTML = '<i class="fa-solid fa-map-pin text-amber-400"></i> <span class="text-amber-400">Last Known Location</span>';
-    }
-    if (badge) {
-      badge.className = 'text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30';
-      badge.textContent = 'LIVE GPS';
-    }
-    if (coords) {
-      coords.textContent = `${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E`;
-    }
-    if (tsElem) {
-      tsElem.textContent = formatFullDateTime(ts);
-    }
-    if (subtext) {
-      subtext.textContent = 'Crash / Disconnect Backup:';
-    }
-    if (navBtn) {
-      navBtn.href = `https://maps.google.com/?q=${lat},${lng}`;
-    }
-  }
-}
 
 export function updateTelemetry(telemetry, riderProfile) {
   if (!telemetry) return;
@@ -118,18 +19,13 @@ export function updateTelemetry(telemetry, riderProfile) {
   }
 
   // 2. Synced Contacts List
-  let contacts = (riderProfile && riderProfile.emergencyContacts) || [];
-  if (contacts.length === 0 && telemetry.emergencyContact) {
-    contacts = [{name: 'Emergency Contact', phone: telemetry.emergencyContact, isPrimary: true}];
-  }
-
-  if (contacts && contacts.length > 0) {
+  if (riderProfile && riderProfile.emergencyContacts && riderProfile.emergencyContacts.length > 0) {
     const container = document.getElementById('contacts-list-container');
     if (container) {
-      container.innerHTML = contacts.map(c => `
+      container.innerHTML = riderProfile.emergencyContacts.map(c => `
         <div class="flex items-center justify-between p-2 rounded-lg bg-slate-900/80 border ${c.isPrimary ? 'border-cyan-500/40 bg-cyan-950/20' : 'border-slate-800'}">
           <div>
-            <div class="text-slate-200 font-bold text-[11px]">${c.isPrimary ? '⭐ [PRIMARY] ' : ''}${c.name || 'Contact'}</div>
+            <div class="text-slate-200 font-bold text-[11px]">${c.isPrimary ? '⭐ [PRIMARY] ' : ''}${c.name} (${c.relation || 'Contact'})</div>
             <div class="text-[10px] text-slate-400 font-mono">${c.phone}</div>
           </div>
           <a href="tel:${c.phone}" class="px-2 py-1 rounded bg-emerald-600/30 text-emerald-400 text-[10px] font-bold border border-emerald-500/30 flex items-center gap-1">
@@ -140,7 +36,7 @@ export function updateTelemetry(telemetry, riderProfile) {
     }
   }
 
-  // 3. Map Speed HUD (Fused GPS + Accelerometer Speed)
+  // 3. Map Speed HUD
   const mapSpeed = document.getElementById('map-speed');
   if (mapSpeed) mapSpeed.textContent = Math.round(loc.speedKmph || 0);
 
@@ -154,126 +50,49 @@ export function updateTelemetry(telemetry, riderProfile) {
 
   const mapCoordsText = document.getElementById('map-coords-text');
   if (mapCoordsText && loc.latitude && loc.longitude) {
-    mapCoordsText.textContent = `${Number(loc.latitude).toFixed(5)}° N, ${Number(loc.longitude).toFixed(5)}° E`;
+    mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
   }
 
-  const isRealGps = loc.isRealGps === true || loc.provider === 'PHONE_HARDWARE_GPS';
-  const gpsBadge = document.getElementById('gps-source-badge');
-  if (gpsBadge) {
-    if (isRealGps) {
-      gpsBadge.className = 'px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1';
-      gpsBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> <span>📍 REAL PHONE GPS (LIVE)</span>';
-    } else {
-      gpsBadge.className = 'px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1';
-      gpsBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span> <span>📍 LIVE HARDWARE SENSORS & GPS</span>';
-    }
+  // 4. Last Known Pre-Crash Coordinates
+  const lastKnown = document.getElementById('last-known-coords');
+  const navBtn = document.getElementById('btn-navigate-last-known');
+  if (lastKnown && loc.latitude && loc.longitude) {
+    lastKnown.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
+    if (navBtn) navBtn.href = `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
   }
 
-  const mapAccuracyText = document.getElementById('map-accuracy-text');
-  if (mapAccuracyText) {
-    const acc = loc.accuracyMeters ? Number(loc.accuracyMeters).toFixed(1) : '3.0';
-    mapAccuracyText.textContent = isRealGps ? `Hardware GPS Accuracy: ±${acc}m` : `Hardware GPS Accuracy: ±${acc}m`;
-  }
-
-  // 4. Update Last Known Location: If no crash logged yet, use live coordinates & timestamp
-  if (!cachedLatestCrash && loc.latitude && loc.longitude) {
-    updateLastKnownLocationCard(null, {
-      latitude: loc.latitude,
-      longitude: loc.longitude,
-      timestamp: telemetry.timestamp || Date.now()
-    });
-  }
-
-  // 5. Helmet Wear Status (IR Sensor)
-  const cardHelmet = document.getElementById('card-helmet');
+  // 5. Helmet Wear Status
   const badgeHelmet = document.getElementById('badge-helmet');
   const interlockText = document.getElementById('helmet-interlock-text');
+  const cardHelmet = document.getElementById('card-helmet');
   if (badgeHelmet && interlockText) {
     if (sensors.helmetWorn) {
-      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/40 bg-emerald-950/20 shadow-md shadow-emerald-950/30 transition-all';
-      badgeHelmet.className = 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 w-max';
-      badgeHelmet.innerHTML = '<i class="fa-solid fa-hard-hat text-[11px] text-emerald-400"></i> HELMET WORN (RIDER DETECTED)';
-      interlockText.textContent = 'IR Sensor: Rider Verified ✅';
-      interlockText.className = 'text-emerald-400 font-bold';
+      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10';
+      badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max';
+      badgeHelmet.innerHTML = '<i class="fa-solid fa-shield-halved text-[11px]"></i> Worn & Locked';
+      interlockText.textContent = 'Authorized';
+      interlockText.className = 'text-emerald-400 font-semibold';
     } else {
-      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/50 bg-red-950/25 shadow-md shadow-red-950/40 animate-pulse transition-all';
-      badgeHelmet.className = 'px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1.5 w-max';
-      badgeHelmet.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[11px] text-red-400"></i> NO HELMET (RIDER ABSENT)';
-      interlockText.textContent = 'IR Sensor: Ignition Locked 🛑';
-      interlockText.className = 'text-red-400 font-bold';
+      if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/30 bg-red-950/10';
+      badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5 w-max';
+      badgeHelmet.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[11px]"></i> NOT WORN (REMOVED)';
+      interlockText.textContent = 'IGNITION LOCKED';
+      interlockText.className = 'text-red-400 font-semibold';
     }
   }
 
-  // 6. Alcohol BAC & Interlock Decision (Matching Guardian APK 800 ADC threshold)
-  const cardAlcohol = document.getElementById('card-alcohol');
-  const alcoholVal = (sensors.alcoholAdc !== undefined) ? sensors.alcoholAdc : 0;
-  const isAlcoholDrunk = alcoholVal >= 800 || sensors.alcoholStatus === 'DRUNK' || String(sensors.alcoholStatus || '').includes('LOCKED');
-  const isAlcoholSafe = !isAlcoholDrunk;
-
+  // 6. Alcohol BAC
   const alcoholAdc = document.getElementById('alcohol-adc-val');
   const alcoholBadge = document.getElementById('alcohol-status-badge');
   const alcoholProgress = document.getElementById('alcohol-progress');
   if (alcoholAdc && alcoholBadge && alcoholProgress) {
-    alcoholAdc.textContent = `${alcoholVal} ADC`;
-    if (isAlcoholSafe) {
-      if (cardAlcohol) cardAlcohol.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/40 bg-emerald-950/20 transition-all';
-      alcoholBadge.textContent = '0.00% SOBER ✅';
-      alcoholBadge.className = 'text-[10px] font-bold text-emerald-400 uppercase';
-      alcoholProgress.style.width = `${Math.min(100, Math.max(8, (alcoholVal / 1600) * 100))}%`;
-      alcoholProgress.className = 'bg-emerald-500 h-1.5 rounded-full transition-all duration-200';
-    } else {
-      if (cardAlcohol) cardAlcohol.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/60 bg-red-950/30 shadow-lg shadow-red-950/50 animate-pulse transition-all';
-      alcoholBadge.textContent = `🛑 DRUNK DETECTED (${alcoholVal} ADC)`;
-      alcoholBadge.className = 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
-      alcoholProgress.style.width = `${Math.min(100, (alcoholVal / 1600) * 100)}%`;
-      alcoholProgress.className = 'bg-red-500 h-1.5 rounded-full transition-all duration-200';
-    }
-  }
-
-  // 6b. Prominent Smart Ignition & Alcohol Interlock Card
-  const cardIgnition = document.getElementById('card-ignition-interlock');
-  const ignitionIconBox = document.getElementById('ignition-icon-box');
-  const ignitionIcon = document.getElementById('ignition-icon');
-  const ignitionBadge = document.getElementById('ignition-badge');
-  const ignitionSubtext = document.getElementById('ignition-subtext');
-  const alcoholInterlockStatus = document.getElementById('alcohol-interlock-status');
-
-  const isIgnitionUnlocked = sensors.helmetWorn && isAlcoholSafe && !alerts.isCrashDetected;
-
-  if (cardIgnition && ignitionBadge) {
-    if (isIgnitionUnlocked) {
-      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-emerald-500/40 bg-emerald-950/20 shadow-md shadow-emerald-950/30 transition-all duration-300';
-      if (ignitionIconBox) ignitionIconBox.className = 'w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg transition-all';
-      if (ignitionIcon) ignitionIcon.className = 'fa-solid fa-key text-emerald-400';
-      ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-      ignitionBadge.textContent = 'UNLOCKED ✅';
-      if (ignitionSubtext) ignitionSubtext.textContent = 'Safe to Ride — Helmet Worn & Rider Sober';
-      if (alcoholInterlockStatus) {
-        alcoholInterlockStatus.textContent = 'DISENGAGED (SAFE)';
-        alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-emerald-400';
-      }
-    } else {
-      cardIgnition.className = 'glass-card rounded-xl p-3.5 border border-red-500/60 bg-red-950/30 shadow-lg shadow-red-950/50 animate-pulse transition-all duration-300';
-      if (ignitionIconBox) ignitionIconBox.className = 'w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-500 text-lg transition-all';
-      if (ignitionIcon) ignitionIcon.className = 'fa-solid fa-ban text-red-500';
-      ignitionBadge.className = 'px-2 py-0.5 rounded text-[10px] font-extrabold bg-red-500/20 text-red-400 border border-red-500/30';
-      ignitionBadge.textContent = 'LOCKED 🛑';
-      if (ignitionSubtext) {
-        if (!sensors.helmetWorn) {
-          ignitionSubtext.textContent = 'Engine Cut Off — Rider Must Wear Helmet (IR Sensor Check)';
-        } else if (isAlcoholDrunk) {
-          ignitionSubtext.textContent = `Engine Cut Off — High Breath Alcohol (${alcoholVal} ADC >= 800) Detected!`;
-        } else if (alerts.isCrashDetected) {
-          ignitionSubtext.textContent = 'Engine Cut Off — Crash Incident Detected! Emergency SOS Triggered';
-        } else {
-          ignitionSubtext.textContent = 'Engine Cut Off — Safety Interlock Engaged';
-        }
-      }
-      if (alcoholInterlockStatus) {
-        alcoholInterlockStatus.textContent = isAlcoholDrunk ? 'ENGAGED (ENGINE LOCKED)' : (sensors.helmetWorn ? 'STANDBY' : 'NO HELMET');
-        alcoholInterlockStatus.className = 'text-xs font-mono font-bold text-red-400';
-      }
-    }
+    const val = sensors.alcoholAdc || 0;
+    alcoholAdc.textContent = val;
+    const isSafe = (sensors.alcoholStatus === 'SAFE' || val < 1500);
+    alcoholBadge.textContent = isSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
+    alcoholBadge.className = isSafe ? 'text-[10px] font-bold text-emerald-400 uppercase' : 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
+    alcoholProgress.style.width = `${Math.min(100, (val / 2000) * 100)}%`;
+    alcoholProgress.className = isSafe ? 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300' : 'bg-red-500 h-1.5 rounded-full transition-all duration-300';
   }
 
   // 7. MPU G-Force
@@ -298,14 +117,15 @@ export function updateTelemetry(telemetry, riderProfile) {
   if (mpuY && sensors.gForceY !== undefined) mpuY.textContent = `${sensors.gForceY > 0 ? '+' : ''}${sensors.gForceY.toFixed(2)} g`;
   if (mpuZ && sensors.gForceZ !== undefined) mpuZ.textContent = `${sensors.gForceZ > 0 ? '+' : ''}${sensors.gForceZ.toFixed(2)} g`;
 
-  // 8. Ignition Relay Badge in MPU / Sensor grid
+  // 8. Ignition Relay
   const relayStatus = document.getElementById('relay-status-text');
   const relayBadge = document.getElementById('relay-badge');
   if (relayStatus && relayBadge) {
-    relayStatus.textContent = isIgnitionUnlocked ? 'ENGINE IGNITION ENABLED' : 'IGNITION CUTOFF (LOCKED)';
-    relayStatus.className = isIgnitionUnlocked ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
-    relayBadge.textContent = isIgnitionUnlocked ? 'CLOSED (ON)' : 'OPEN (OFF)';
-    relayBadge.className = isIgnitionUnlocked ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
+    const isOn = sensors.ignitionRelay !== false && !alerts.isCrashDetected;
+    relayStatus.textContent = isOn ? 'ENGINE IGNITION ENABLED' : 'IGNITION CUTOFF (LOCKED)';
+    relayStatus.className = isOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
+    relayBadge.textContent = isOn ? 'CLOSED (ON)' : 'OPEN (OFF)';
+    relayBadge.className = isOn ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
   }
 }
 
@@ -316,42 +136,35 @@ export function renderSosHistoryList(history) {
 
   if (countBadge) countBadge.textContent = `${history.length} Event${history.length === 1 ? '' : 's'}`;
 
-  // Anchor Last Known Location card directly to the most recent accident event if present!
-  if (history.length > 0) {
-    cachedLatestCrash = history[0];
-    updateLastKnownLocationCard(cachedLatestCrash, null);
-  } else {
-    cachedLatestCrash = null;
-  }
-
   if (history.length === 0) {
     container.innerHTML = `<div class="text-[11px] text-slate-400 italic text-center py-2">No emergency dispatches recorded yet. Guardian system on standby.</div>`;
     return;
   }
 
   container.innerHTML = history.map(item => {
-    const formattedDate = formatFullDateTime(item.timestamp);
-    const lat = item.location ? item.location.latitude : (item.lat || 18.4529);
-    const lng = item.location ? item.location.longitude : (item.lng || 73.8553);
-    const g = item.gForce ? Number(item.gForce).toFixed(1) : '4.0';
+    const d = new Date(item.timestamp || Date.now());
+    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const lat = item.location ? item.location.latitude : 18.4529;
+    const lng = item.location ? item.location.longitude : 73.8553;
+    const g = item.gForce ? item.gForce.toFixed(1) : '4.0';
 
     return `
-      <div class="p-2.5 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-1.5 text-xs">
+      <div class="p-2.5 rounded-xl bg-slate-900/90 border border-red-500/30 space-y-1 text-xs">
         <div class="flex items-center justify-between">
           <span class="font-bold text-red-400 flex items-center gap-1">
             <i class="fa-solid fa-car-burst text-[10px]"></i>
             <span>${item.type === 'MANUAL_SOS' ? 'Manual SOS Alert' : 'Crash Detected (' + g + 'G)'}</span>
           </span>
-          <span class="text-[10px] text-slate-400 font-mono font-semibold">${formattedDate}</span>
+          <span class="text-[10px] text-slate-400 font-mono">${timeStr}</span>
         </div>
-        <div class="text-[11px] text-slate-200 font-mono font-bold">
-          📍 ${Number(lat).toFixed(5)}° N, ${Number(lng).toFixed(5)}° E
+        <div class="text-[11px] text-slate-300 font-mono">
+          📍 ${lat.toFixed(4)}° N, ${lng.toFixed(4)}° E
         </div>
         <div class="flex items-center justify-between pt-1 border-t border-slate-800 text-[10px]">
-          <span class="text-emerald-400 font-semibold flex items-center gap-1">
+          <span class="text-emerald-400 font-semibold">
             <i class="fa-solid fa-check-double text-[9px]"></i> SMS & Auto-Call Dispatched
           </span>
-          <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="px-2 py-0.5 rounded bg-blue-600/30 text-cyan-300 font-bold border border-blue-500/40 hover:underline">
+          <a href="https://maps.google.com/?q=${lat},${lng}" target="_blank" class="text-blue-400 font-bold hover:underline">
             View Pin ↗
           </a>
         </div>

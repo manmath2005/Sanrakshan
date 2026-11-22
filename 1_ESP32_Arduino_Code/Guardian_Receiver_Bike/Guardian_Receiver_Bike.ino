@@ -2,42 +2,9 @@
  * ============================================================================
  * GUARDIAN SMART HELMET - BIKE RECEIVER & IGNITION MOTOR CONTROLLER
  * Target Hardware: ESP32 DevKit V1 (30-Pin)
+ * Relay Module: 5V Active-LOW (JQC-3FF-S-Z) via OUTPUT_OPEN_DRAIN
  * Power Source for ESP32: 5V USB / Power Bank / Buck Converter
- * Power Source for Motor: 1200mAh Rechargeable Li-ion Battery (3.7V - 4.2V)
- * ============================================================================
- * 
- * HARDWARE CONNECTIONS:
- * ----------------------------------------------------------------------------
- * 1. TEMPORARY IGNITION KEY SWITCH:
- *    - Switch Terminal 1   -> ESP32 GPIO 4
- *    - Switch Terminal 2   -> ESP32 GND
- *    (Uses internal INPUT_PULLUP: Switch ON/Closed = LOW, Switch OFF/Open = HIGH)
- * 
- * 2. MOTOR CONTROL OUTPUT (Relay / MOSFET / Transistor / Motor Driver):
- *    - Control Signal (IN) -> ESP32 GPIO 18 (Active HIGH: HIGH = Motor ON)
- * 
- * 3. 1200mAh Li-ion CELL & DC MOTOR POWER WIRING:
- *    - Li-ion Battery (+)  -> Relay COM (or Motor Driver VCC / MOSFET Drain)
- *    - Relay NO Terminal   -> DC Motor (+) Wire
- *    - DC Motor (-) Wire   -> Li-ion Battery (-) Wire
- *    - Li-ion Battery (-)  -> ESP32 GND  (⚠️ CRITICAL: COMMON GROUND REQUIRED!)
- * 
- * 4. OPTIONAL I2C OLED (128x64 0.96"):
- *    - OLED VCC            -> ESP32 3V3 (or VIN)
- *    - OLED GND            -> ESP32 GND
- *    - OLED SCL            -> ESP32 GPIO 22
- *    - OLED SDA            -> ESP32 GPIO 21
- * 
- * 5. STATUS INDICATOR:
- *    - Built-in Blue LED   -> ESP32 GPIO 2 (Solid ON = Motor Running, Blinking = Lockout)
- * ----------------------------------------------------------------------------
- * 
- * EXACT IGNITION MOTOR LOGIC:
- * 1. Switch ON + Helmet Worn + Rider Sober + No Crash  -> MOTOR RUNS! (Ignition Active)
- * 2. Switch ON + Rider is DRUNK                        -> MOTOR STAYS OFF! (Locked until sober)
- * 3. Switch ON + Helmet NOT Worn                       -> MOTOR STAYS OFF! (Must wear helmet)
- * 4. Switch ON + Crash Occurs                          -> MOTOR CUTS OFF INSTANTLY!
- * 5. Switch OFF                                        -> MOTOR OFF
+ * Power Source for Motor: Isolated 1200mAh Li-ion Battery (3.7V - 4.2V)
  * ============================================================================
  */
 
@@ -49,12 +16,19 @@
 
 // PIN ASSIGNMENTS
 #define IGNITION_SWITCH_PIN 4   // Temporary Ignition Key Switch (INPUT_PULLUP to GND)
-#define MOTOR_PIN           18  // Motor Relay / MOSFET Driver Signal (Active HIGH)
+#define MOTOR_PIN           18  // Relay IN Pin (Active-LOW via Open-Drain)
 #define STATUS_LED_PIN      2   // Built-in Blue LED indicator
 
+// ACTIVE-LOW RELAY LOGIC (Fixes 5V Relay + 3.3V ESP32 Stuck-ON Issue)
+#define RELAY_ON   LOW          // Pulls IN to GND -> Relay clicks ON (Motor Runs)
+#define RELAY_OFF  HIGH         // Floats pin (Open-Drain) -> Relay turns OFF (Motor Stops)
+
 // SAFETY THRESHOLDS
-const int ALCOHOL_THRESHOLD_ADC      = 800;   // >= 800 ADC = Intoxicated / Engine Locked
-const unsigned long HELMET_TIMEOUT_MS = 2500;  // Lock motor if helmet transmitter loses power/range
+const int ALCOHOL_THRESHOLD_ADC       = 800;   // >= 800 ADC = Intoxicated / Engine Locked
+const unsigned long HELMET_TIMEOUT_MS = 2500;  // Lock motor if helmet signal is lost
+
+// PAIRED HELMET TRANSMITTER MAC ADDRESS (00:70:07:E6:F4:68)
+const uint8_t transmitterMAC[] = {0x00, 0x70, 0x07, 0xE6, 0xF4, 0x68};
 
 // OPTIONAL OLED DISPLAY (128x64 I2C)
 #define SCREEN_WIDTH 128
@@ -77,16 +51,23 @@ bool motorRunning = false;
 // ESP-NOW Receive Callback (Compatible with ESP32 Core 2.x & 3.x)
 #if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
 void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *incomingData, int len) {
+  const uint8_t *senderMac = info->src_addr;
 #else
 void OnDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
+  const uint8_t *senderMac = mac;
 #endif
+  // Security Check: Only accept packets from the paired Helmet Transmitter MAC
+  if (memcmp(senderMac, transmitterMAC, 6) != 0) {
+    return;
+  }
+
   if (len == sizeof(GuardianTelemetryPacket)) {
     memcpy(&helmetData, incomingData, sizeof(helmetData));
     lastPacketReceived = millis();
 
     // Instant Zero-Delay Crash Cutoff (< 5ms)
     if (helmetData.isCrashTriggered) {
-      digitalWrite(MOTOR_PIN, LOW);
+      digitalWrite(MOTOR_PIN, RELAY_OFF);
       digitalWrite(STATUS_LED_PIN, LOW);
       motorRunning = false;
     }
@@ -139,11 +120,11 @@ void setup() {
 
   // 1. Digital GPIO Configuration
   pinMode(IGNITION_SWITCH_PIN, INPUT_PULLUP);
-  pinMode(MOTOR_PIN, OUTPUT);
+  pinMode(MOTOR_PIN, OUTPUT_OPEN_DRAIN);  // Open-Drain allows 5V Active-LOW relay to turn OFF
   pinMode(STATUS_LED_PIN, OUTPUT);
 
   // Default state: Motor and LED completely OFF
-  digitalWrite(MOTOR_PIN, LOW);
+  digitalWrite(MOTOR_PIN, RELAY_OFF);
   digitalWrite(STATUS_LED_PIN, LOW);
 
   // 2. Optional OLED Display (With I2C Timeout to prevent freeze)
@@ -168,10 +149,15 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
 
+  Serial.print("📡 Receiver MAC Address (Put this in Transmitter): ");
+  Serial.println(WiFi.macAddress());
+
   if (esp_now_init() != ESP_OK) {
     Serial.println("❌ [ERROR] ESP-NOW initialization failed!");
   } else {
-    Serial.println("✅ ESP-NOW Radio Active. Listening for Helmet Transmitter...");
+    Serial.printf("✅ ESP-NOW Radio Active. Paired strictly to Helmet MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
+                  transmitterMAC[0], transmitterMAC[1], transmitterMAC[2],
+                  transmitterMAC[3], transmitterMAC[4], transmitterMAC[5]);
     esp_now_register_recv_cb(OnDataRecv);
   }
 
@@ -205,14 +191,14 @@ void loop() {
   // -------------------------------------------------------------
   if (switchOn) {
     if (safeToRun) {
-      // ALL CLEAR: Start the motor from 1200mAh Li-ion battery!
-      digitalWrite(MOTOR_PIN, HIGH);
+      // ALL CLEAR: Start the motor from isolated 1200mAh Li-ion battery
+      digitalWrite(MOTOR_PIN, RELAY_ON);
       digitalWrite(STATUS_LED_PIN, HIGH);
       motorRunning = true;
       lockReason = "RUN";
     } else {
-      // SWITCH IS ON, BUT SAFETY FAILED -> KEEP MOTOR OFF!
-      digitalWrite(MOTOR_PIN, LOW);
+      // SWITCH IS ON, BUT SAFETY FAILED -> KEEP MOTOR OFF
+      digitalWrite(MOTOR_PIN, RELAY_OFF);
       motorRunning = false;
 
       // Determine Lockout Reason for display & serial
@@ -226,12 +212,12 @@ void loop() {
         lockReason = "NO HELMET SIGNAL";
       }
 
-      // Fast warning blink on built-in LED (5Hz) to show user why motor won't turn on
+      // Fast warning blink on built-in LED (5Hz) to show lockout
       digitalWrite(STATUS_LED_PIN, (now / 100) % 2 == 0 ? HIGH : LOW);
     }
   } else {
     // Switch is OFF -> Motor OFF, LED OFF
-    digitalWrite(MOTOR_PIN, LOW);
+    digitalWrite(MOTOR_PIN, RELAY_OFF);
     digitalWrite(STATUS_LED_PIN, LOW);
     motorRunning = false;
     lockReason = "SWITCH OFF";

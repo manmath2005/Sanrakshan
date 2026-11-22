@@ -3,78 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Guardian — Smart Helmet IoT & Life-Safety Dashboard</title>
-
-  <!-- Primary SEO Meta Tags -->
-  <meta name="description" content="Guardian is an advanced IoT Smart Helmet life-safety platform featuring real-time GPS tracking, dual-threshold crash impact detection, alcohol breathalyzer interlock, SOS alerts, and automated emergency escalation.">
-  <meta name="keywords" content="smart helmet, IoT bike safety, crash detection, alcohol ignition interlock, GPS tracking, rider safety, emergency SOS, ESP32 helmet, Guardian app, Sanrakshan">
-  <meta name="author" content="Team Sankalp">
-  <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://sanrakshan-eight.vercel.app/">
-  <meta name="theme-color" content="#020617">
-
-  <!-- Open Graph / Facebook Meta Tags -->
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://sanrakshan-eight.vercel.app/">
-  <meta property="og:title" content="Guardian — Smart Helmet IoT & Life-Safety Dashboard">
-  <meta property="og:description" content="Real-time GPS rider telemetry, instant crash impact detection, alcohol interlock, and automated emergency escalation.">
-  <meta property="og:image" content="https://sanrakshan-eight.vercel.app/img/guardian_logo.png">
-  <meta property="og:site_name" content="Guardian Smart Helmet">
-
-  <!-- Twitter Card Meta Tags -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:url" content="https://sanrakshan-eight.vercel.app/">
-  <meta name="twitter:title" content="Guardian — Smart Helmet IoT & Life-Safety Dashboard">
-  <meta name="twitter:description" content="Real-time GPS rider telemetry, instant crash impact detection, alcohol interlock, and automated emergency escalation.">
-  <meta name="twitter:image" content="https://sanrakshan-eight.vercel.app/img/guardian_logo.png">
-
-  <!-- Mobile App / Favicon Tags -->
-  <link rel="icon" type="image/png" href="img/guardian_logo.png">
-  <link rel="apple-touch-icon" href="img/guardian_logo.png">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Guardian">
-
-  <!-- Schema.org JSON-LD Structured Data for Enhanced Search Snippets -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "WebApplication",
-        "@id": "https://sanrakshan-eight.vercel.app/#webapp",
-        "name": "Guardian Smart Helmet IoT & Life-Safety Dashboard",
-        "url": "https://sanrakshan-eight.vercel.app/",
-        "applicationCategory": "HealthApplication, SafetyApplication, TelemetryApplication",
-        "operatingSystem": "All modern browsers, Android 9.0 to 16.0",
-        "description": "Real-time IoT telemetry, GPS rider tracking, high-G crash impact detection, and alcohol ignition interlock safety system.",
-        "browserRequirements": "Requires JavaScript. Requires HTML5.",
-        "author": {
-          "@type": "Organization",
-          "name": "Team Sankalp",
-          "url": "https://sanrakshan-eight.vercel.app/"
-        },
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "USD"
-        }
-      },
-      {
-        "@type": "SoftwareApplication",
-        "@id": "https://sanrakshan-eight.vercel.app/#androidapp",
-        "name": "Guardian Android Companion App",
-        "operatingSystem": "Android 9.0 (API 28) - Android 16 (API 36)",
-        "applicationCategory": "SafetyApplication",
-        "downloadUrl": "https://sanrakshan-eight.vercel.app/downloads/Guardian.apk",
-        "fileSize": "455KB",
-        "softwareVersion": "4.0",
-        "description": "Companion Android application providing Bluetooth Low Energy telemetry sync, foreground GPS tracking, automatic SOS SMS broadcast, and emergency contact phone call escalation."
-      }
-    ]
-  }
-  </script>
+  <title>Smart Helmet IoT — Live GPS Tracking & Safety Cloud Dashboard</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -117,10 +46,11 @@
   <div id="login-gate-modal" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4">
     <div class="glass-panel max-w-md w-full rounded-2xl p-6 sm:p-8 border border-slate-700 shadow-2xl relative">
       <div class="flex flex-col items-center text-center mb-6">
-        <img src="img/guardian_logo.png" alt="Guardian Logo" class="w-20 h-20 object-contain drop-shadow-xl mb-2" />
-        <h2 class="text-xl font-black text-white tracking-tight">GUARDIAN</h2>
-        <p class="text-xs font-semibold text-cyan-400 italic">"Your Silent Co-Rider for Life & Safety."</p>
-        <p class="text-[11px] text-slate-400 mt-1">Enter your Rider / Vehicle ID to unlock live GPS tracking & telemetry</p>
+        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-blue-500/25 mb-3">
+          <i class="fa-solid fa-helmet-safety text-white text-2xl"></i>
+        </div>
+        <h2 class="text-xl font-black text-white tracking-tight">Smart Helmet IoT Portal</h2>
+        <p class="text-xs text-slate-400 mt-1">Enter or paste your Rider / Vehicle ID to unlock live GPS tracking & telemetry</p>
       </div>
 
       <form id="login-form" class="space-y-4">
@@ -140,16 +70,16 @@
 
         <!-- Quick Demo Accounts -->
         <div class="pt-3 border-t border-slate-800 text-center">
-          <div class="text-[11px] text-slate-400 mb-2">Registered Bike IDs:</div>
+          <div class="text-[11px] text-slate-400 mb-2">Quick Demo Rider IDs:</div>
           <div class="flex justify-center gap-2">
             <button type="button" class="quick-id-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-all" data-id="BIKE-101">BIKE-101</button>
             <button type="button" class="quick-id-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-all" data-id="BIKE-102">BIKE-102</button>
             <button type="button" class="quick-id-btn px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-mono border border-slate-700 transition-all" data-id="FLEET-007">FLEET-007</button>
           </div>
           <div class="mt-3">
-            <a href="downloads/Guardian.apk" download="Guardian.apk" class="inline-flex items-center gap-1.5 text-xs text-cyan-400 hover:text-cyan-300 font-semibold bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 px-3 py-1.5 rounded-lg transition-all">
+            <a href="downloads/SmartHelmet.apk" download="SmartHelmet.apk" class="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 rounded-lg transition-all">
               <i class="fa-brands fa-android"></i>
-              <span>Download Guardian Android App (.apk)</span>
+              <span>Download Rider Android App (.apk)</span>
             </a>
           </div>
         </div>
@@ -160,13 +90,15 @@
   <!-- 2. TOP HEADER / NAV BAR -->
   <header class="glass-panel sticky top-0 z-30 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
     <div class="flex items-center space-x-3">
-      <img src="img/guardian_logo.png" alt="Guardian" class="w-10 h-10 object-contain drop-shadow" />
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <i class="fa-solid fa-helmet-safety text-white text-lg"></i>
+      </div>
       <div>
-        <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-2">
-          GUARDIAN
-          <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Smart Helmet IoT</span>
+        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          Smart Helmet IoT
+          <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Zero-Delay Cloud</span>
         </h1>
-        <p class="text-xs text-slate-400 italic">"Your Silent Co-Rider for Life & Safety."</p>
+        <p class="text-xs text-slate-400">Live GPS Tracking, Ignition Interlock & Accident Detection</p>
       </div>
     </div>
 
@@ -181,9 +113,14 @@
         </button>
       </div>
 
-      <a href="downloads/Guardian.apk" download="Guardian.apk" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all">
+      <a href="downloads/SmartHelmet.apk" download="SmartHelmet.apk" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all">
         <i class="fa-brands fa-android text-white"></i>
-        <span>Download Guardian APK</span>
+        <span>Download APK</span>
+      </a>
+
+      <a href="simulation-3d.html" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all" title="Launch 3D CAD & Digital-Twin Simulation">
+        <i class="fa-solid fa-cube text-white"></i>
+        <span>3D CAD Simulation</span>
       </a>
 
       <a href="hardware-poster.html" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 text-xs font-semibold flex items-center gap-1.5 transition-all" title="View Hardware Bill of Materials & Voltage/Ampere Poster">
@@ -196,9 +133,16 @@
         <span>Share Live Link</span>
       </button>
 
-      <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-semibold text-slate-200">
-        <i class="fa-solid fa-satellite text-cyan-400 text-xs"></i>
-        <span>Live IoT Stream</span>
+      <div class="flex bg-slate-900 p-0.5 rounded-lg border border-slate-800">
+        <button id="mode-viewer" class="px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1">
+          <i class="fa-solid fa-eye text-[10px]"></i> Family / Rental
+        </button>
+        <button id="mode-transmitter" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1">
+          <i class="fa-solid fa-satellite-dish text-[10px]"></i> Phone GPS
+        </button>
+        <button id="mode-simulator" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1">
+          <i class="fa-solid fa-gamepad text-[10px]"></i> Demo Sim
+        </button>
       </div>
 
       <div id="cloud-status-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
@@ -216,37 +160,25 @@
       <div id="map" class="w-full flex-1 z-10"></div>
 
       <!-- Map Floating Overlay Controls -->
-      <div class="absolute top-4 left-4 z-20 flex flex-col gap-2 max-w-sm pointer-events-auto">
-        <div class="map-hud-overlay rounded-2xl p-3.5 shadow-2xl flex items-center gap-3.5 border border-cyan-500/40 bg-slate-950/95 backdrop-blur-xl">
-          <div class="flex flex-col items-center justify-center bg-cyan-950/80 border border-cyan-500/40 rounded-xl w-16 h-16 shadow-inner shrink-0">
-            <span id="map-speed" class="text-2xl font-black font-mono text-cyan-400 leading-none">0</span>
-            <span class="text-[9px] text-cyan-300 uppercase font-bold tracking-wider mt-1">KM/H</span>
+      <div class="absolute top-4 left-4 z-20 flex flex-col gap-2">
+        <div class="glass-panel rounded-xl p-3 shadow-2xl flex items-center gap-3 border border-slate-700/50">
+          <div class="flex flex-col items-center justify-center bg-blue-950/60 border border-blue-500/30 rounded-lg w-14 h-14">
+            <span id="map-speed" class="text-2xl font-black font-mono text-blue-400 leading-none">0</span>
+            <span class="text-[10px] text-slate-400 uppercase font-semibold mt-0.5">km/h</span>
           </div>
-          <div class="flex-1 min-w-0">
-            <div class="text-xs font-bold text-white flex items-center gap-1.5">
-              <i class="fa-solid fa-location-arrow text-cyan-400 transform" id="heading-icon"></i>
+          <div>
+            <div class="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-location-arrow text-blue-400 transform" id="heading-icon"></i>
               <span id="map-heading-text">Heading North (0°)</span>
             </div>
-            <div class="text-[12px] text-cyan-200 mt-1 font-mono font-semibold" id="map-coords-text">
-              18.45290° N, 73.85530° E
+            <div class="text-[11px] text-slate-400 mt-1 font-mono" id="map-coords-text">
+              18.4529° N, 73.8553° E
             </div>
-            <div class="text-[10px] text-slate-300 flex items-center gap-1 mt-0.5">
+            <div class="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
               <i class="fa-solid fa-circle-dot text-emerald-400 text-[8px]"></i>
               <span id="map-accuracy-text">GPS Accuracy: ±3.5m</span>
             </div>
-            <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
-              <span id="gps-source-badge" class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>📍 REAL PHONE GPS (LIVE)</span>
-              </span>
-              <span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1">
-                <i class="fa-solid fa-bolt text-[8px] text-cyan-400"></i>
-                <span>FUSED GPS + ACCEL</span>
-              </span>
-            </div>
           </div>
-        </div>
-      </div>
         </div>
       </div>
 
@@ -310,73 +242,22 @@
       </div>
 
       <!-- LAST KNOWN PRE-CRASH LOCATION CARD (SAFETY CRITICAL) -->
-      <div id="last-known-location-card" class="glass-card rounded-xl p-3.5 border border-amber-500/40 bg-amber-950/20 transition-all duration-300">
-        <div class="flex items-center justify-between text-xs font-bold mb-1.5">
-          <span class="flex items-center gap-1.5 text-amber-400" id="last-known-title">
+      <div id="last-known-location-card" class="glass-card rounded-xl p-3 border border-amber-500/30 bg-amber-950/10">
+        <div class="flex items-center justify-between text-xs text-amber-400 font-semibold mb-1">
+          <span class="flex items-center gap-1.5">
             <i class="fa-solid fa-map-pin"></i>
             <span>Last Known Location</span>
           </span>
-          <span id="last-known-badge" class="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-            GPS PING
-          </span>
+          <span id="last-seen-timestamp" class="text-[10px] text-slate-400 font-mono">Just now</span>
         </div>
-        <p class="text-sm text-white font-mono font-bold leading-relaxed" id="last-known-coords">
+        <p class="text-[11px] text-slate-300 font-mono leading-relaxed" id="last-known-coords">
           18.45290° N, 73.85530° E
         </p>
-        <div class="text-[11px] text-slate-300 flex items-center gap-1.5 mt-1 font-mono">
-          <i class="fa-regular fa-clock text-amber-400 text-[10px]"></i>
-          <span id="last-seen-timestamp">Standby for GPS sync</span>
-        </div>
-        <div class="flex items-center justify-between mt-2.5 pt-2 border-t border-amber-500/20 text-[10px]">
-          <span class="text-slate-400" id="last-known-subtext">Crash / Disconnect Backup:</span>
-          <a id="btn-navigate-last-known" href="https://maps.google.com/?q=18.4529,73.8553" target="_blank" class="px-2.5 py-1 rounded bg-blue-600/30 hover:bg-blue-600/50 text-cyan-300 font-bold border border-blue-500/40 flex items-center gap-1 transition-all">
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-amber-500/20 text-[10px]">
+          <span class="text-slate-400">Crash / Disconnect Backup:</span>
+          <a id="btn-navigate-last-known" href="https://maps.google.com/?q=18.4529,73.8553" target="_blank" class="text-blue-400 font-bold hover:underline flex items-center gap-1">
             <i class="fa-solid fa-diamond-turn-right text-[9px]"></i> Google Maps Route
           </a>
-        </div>
-      </div>
-
-      
-      <!-- GUARDIAN MISSION & MOTTO CARD -->
-      <div class="glass-card rounded-xl p-3.5 border border-cyan-500/30 bg-cyan-950/20">
-        <div class="flex items-center space-x-3">
-          <img src="img/guardian_logo.png" alt="Guardian Shield" class="w-10 h-10 object-contain drop-shadow" />
-          <div>
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] uppercase font-bold text-cyan-400 tracking-wider">Guardian Project Motto</span>
-            </div>
-            <p class="text-xs font-bold text-white italic mt-0.5">
-              "Your Silent Co-Rider for Life & Safety."
-            </p>
-            <p class="text-[10px] text-slate-400 mt-1 leading-tight">
-              Optical IR Helmet Verification • MQ-3 Breath Alcohol Interlock • Continuous GPS Tracking • Instant Emergency Escalation
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- SMART IGNITION RELAY & ALCOHOL INTERLOCK CARD -->
-      <div id="card-ignition-interlock" class="glass-card rounded-xl p-3.5 border border-emerald-500/30 bg-emerald-950/20 transition-all duration-300">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <div id="ignition-icon-box" class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-lg transition-all">
-              <i id="ignition-icon" class="fa-solid fa-key"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Engine Ignition Status</span>
-                <span id="ignition-badge" class="px-2 py-0.5 rounded text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  UNLOCKED ✅
-                </span>
-              </div>
-              <p id="ignition-subtext" class="text-xs font-semibold text-slate-200 mt-0.5">
-                Safe to Ride — Ignition Circuit Active
-              </p>
-            </div>
-          </div>
-          <div class="text-right">
-            <span class="text-[9px] uppercase font-semibold text-slate-400 block">Alcohol Lock</span>
-            <span id="alcohol-interlock-status" class="text-xs font-mono font-bold text-emerald-400">DISENGAGED</span>
-          </div>
         </div>
       </div>
 
@@ -384,40 +265,40 @@
       <div class="grid grid-cols-2 gap-3">
 
         <!-- 1. Helmet Wear Status -->
-        <div id="card-helmet" class="glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10">
+        <div id="card-helmet" class="glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/30 bg-red-950/10">
           <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span class="font-semibold text-slate-300">IR Helmet Sensor</span>
-            <i class="fa-solid fa-hard-hat text-emerald-400"></i>
+            <span>Helmet Status</span>
+            <i class="fa-solid fa-hard-hat text-red-400"></i>
           </div>
           <div class="my-1">
-            <span id="badge-helmet" class="px-2 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max">
-              <i class="fa-solid fa-shield-halved text-[11px]"></i> HELMET WORN (RIDER DETECTED)
+            <span id="badge-helmet" class="px-2 py-1 rounded-md text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5 w-max">
+              <i class="fa-solid fa-triangle-exclamation text-[11px]"></i> NOT WORN (REMOVED)
             </span>
           </div>
           <div class="text-[10px] text-slate-400 flex items-center justify-between">
             <span>Interlock:</span>
-            <span id="helmet-interlock-text" class="text-emerald-400 font-semibold">Authorized</span>
+            <span id="helmet-interlock-text" class="text-red-400 font-semibold">IGNITION LOCKED</span>
           </div>
         </div>
 
         <!-- 2. Alcohol BAC Meter -->
         <div id="card-alcohol" class="glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10">
           <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-            <span class="font-semibold text-slate-300">MQ-3 Alcohol Sensor</span>
+            <span>Breath Alcohol</span>
             <i class="fa-solid fa-wine-glass-slash text-emerald-400"></i>
           </div>
           <div>
             <div class="flex items-baseline justify-between">
-              <span id="alcohol-adc-val" class="text-lg font-mono font-bold text-white">420</span>
+              <span id="alcohol-adc-val" class="text-lg font-mono font-bold text-white">0</span>
               <span id="alcohol-status-badge" class="text-[10px] font-bold text-emerald-400 uppercase">0.00% SOBER</span>
             </div>
             <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
-              <div id="alcohol-progress" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: 25%"></div>
+              <div id="alcohol-progress" class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
           </div>
           <div class="text-[10px] text-slate-400 flex items-center justify-between mt-1">
             <span>Limit:</span>
-            <span class="font-mono text-slate-300">800 ADC (0.05% BAC Interlock)</span>
+            <span class="font-mono text-slate-300">1500 ADC (0.03%)</span>
           </div>
         </div>
 
@@ -516,11 +397,56 @@
         </div>
       </div>
 
-      <!-- Remote Safety Sensitivity panel removed as requested -->
+      <!-- REMOTE SAFETY CONFIGURATION PANEL -->
+      <div id="config-panel" class="glass-card rounded-xl p-4 border border-blue-500/30 bg-blue-950/10 space-y-3">
+        <div class="flex items-center justify-between">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-sliders"></i>
+            <span>Remote Safety Sensitivity</span>
+          </h4>
+          <span id="sync-pill" class="text-[9px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
+            Synced to Bike
+          </span>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center text-xs mb-1.5">
+            <span class="text-slate-300 font-medium">MPU Crash Threshold (G-Force):</span>
+            <span id="slider-g-val" class="font-mono font-bold text-blue-400 text-sm">2.5 G</span>
+          </div>
+          <input type="range" id="sensitivity-slider" min="1.0" max="4.0" step="0.1" value="2.5" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer" />
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+            <span>1.0G (High Alert)</span>
+            <span>2.5G (Standard)</span>
+            <span>4.0G (Severe Only)</span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 pt-1">
+          <span class="text-[10px] text-slate-400 mr-1">Presets:</span>
+          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="1.8">
+            Strict Rental (1.8G)
+          </button>
+          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="2.5">
+            City (2.5G)
+          </button>
+          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="3.2">
+            Off-Road (3.2G)
+          </button>
+        </div>
+      </div>
 
       <!-- TEST SIMULATION CONTROLS -->
       <div class="pt-2 border-t border-slate-800/80">
-        
+        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Simulation & Emergency Test</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btn-trigger-crash" class="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+            <i class="fa-solid fa-car-burst"></i> Simulate Crash
+          </button>
+          <button id="btn-trigger-sos" class="px-3 py-2 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
+            <i class="fa-solid fa-triangle-exclamation"></i> Manual SOS
+          </button>
+        </div>
       </div>
 
     </aside>
@@ -583,30 +509,5 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
-
-  <!-- Cloud Deployment Banner — shown when served from Vercel -->
-  <script>
-    (function() {
-      const host = window.location.hostname;
-      const isCloud = host.includes('vercel.app') || host.includes('netlify.app') || (host !== 'localhost' && host !== '127.0.0.1' && !host.startsWith('192.168'));
-      if (isCloud) {
-        // Auto-populate the server URL field with the current origin so APK users see the correct URL
-        window.addEventListener('DOMContentLoaded', function() {
-          const urlHint = document.getElementById('server-url-hint');
-          if (urlHint) urlHint.textContent = window.location.origin;
-
-          const urlField = document.getElementById('et-server-url');
-          if (urlField && !urlField.value) urlField.value = window.location.origin;
-
-          // Show cloud connected badge if element exists
-          const badge = document.getElementById('cloud-badge');
-          if (badge) {
-            badge.style.display = 'flex';
-            badge.textContent = '☁️ Live Cloud: ' + window.location.hostname;
-          }
-        });
-      }
-    })();
-  </script>
 </body>
 </html>

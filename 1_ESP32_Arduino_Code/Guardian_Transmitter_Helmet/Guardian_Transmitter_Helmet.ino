@@ -1,32 +1,23 @@
 /**
- * ============================================================================
- * GUARDIAN SMART HELMET - TRANSMITTER UNIT (TRANSMITTER -> APK & BIKE RELAY)
- * Target Hardware: ESP32 DevKit V1 (30-Pin)
- * Power Source: Direct USB 5V
- * ============================================================================
- * SENSOR CONNECTIONS:
- * - ESP32 VIN                        -> Red Rail (+5V)
- * - ESP32 GND                        -> Blue Rail (GND)
- * - MQ-3 Alcohol Sensor (AO)         -> GPIO 34 (ADC1_CH6)
- * - TCRT5000 IR / Ultrasonic (DO)    -> GPIO 13 (INPUT_PULLUP: LOW = Worn)
- * - MPU-6050 6-Axis IMU (I2C)        -> SDA = GPIO 21, SCL = GPIO 22
- * - Emergency SOS Cancel Button      -> GPIO 4  (INPUT_PULLUP to GND)
- * - Warning Active Piezo Buzzer      -> GPIO 19 (HIGH = Beep)
- * 
- * BUZZER LOGIC:
- * 1. Rider wears helmet & Sober      -> Buzzer beeps ONCE (180ms confirmation)
- * 2. Rider is Drunk (>= 800 ADC)     -> Buzzer beeps CONTINUOUSLY until level drops
- * 3. Crash Detected (>= 4.0G)        -> Buzzer beeps CONTINUOUSLY (SOS alarm)
- * 4. Helmet Removed                  -> Buzzer is OFF
- * 
- * WIRELESS TRANSMISSION:
- * 1. Bluetooth Low Energy (BLE): Direct real-time link to Guardian APK
- * 2. ESP-NOW Unicast (MAC Paired): Dedicated radio link to Bike Receiver Ignition Relay
- * ============================================================================
+- ============================================================================
+- GUARDIAN SMART HELMET - TRANSMITTER UNIT (TRANSMITTER -> APK & BIKE RELAY)
+- Target Hardware: ESP32 DevKit V1 (30-Pin)
+- Power Source: Direct USB 5V
+- ============================================================================
+- SENSOR CONNECTIONS:
+- - ESP32 VIN                        -> Red Rail (+5V)
+- - ESP32 GND                        -> Blue Rail (GND)
+- - MQ-3 Alcohol Sensor (AO)         -> GPIO 34 (ADC1_CH6)
+- - TCRT5000 IR / Ultrasonic (DO)    -> GPIO 13 (INPUT_PULLUP: LOW = Worn)
+- - MPU-6050 6-Axis IMU (I2C)        -> SDA = GPIO 21, SCL = GPIO 22
+- - Emergency SOS Cancel Button      -> GPIO 4  (INPUT_PULLUP to GND)
+- - Warning Active Piezo Buzzer      -> GPIO 19 (HIGH = Beep)
+- ============================================================================
  */
 
 #include <esp_now.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
@@ -47,13 +38,14 @@ const float CRASH_THRESHOLD_G        = 2.50;  // >= 2.5G = Moderate Impact (3s c
 const float CRASH_INSTANT_TRIGGER_G  = 4.00;  // >= 4.0G = High-Speed Crash (Immediate SOS)
 const unsigned long CANCEL_WINDOW_MS = 3000;  // 3-second grace window to cancel bumps
 
-// BLE DEFINITIONS (Matches Guardian Android App)
+// BLE DEFINITIONS (Matches Guardian Android App / Website)
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 BLEServer* pServer = NULL;
 BLECharacteristic* pCharacteristic = NULL;
 bool deviceConnected = false;
+uint16_t negotiatedMTU = 23; // Default BLE MTU is 23 bytes (20 bytes payload)
 
 // SENSOR & STATE VARIABLES
 Adafruit_MPU6050 mpu;
@@ -61,6 +53,7 @@ bool mpuAvailable = false;
 bool isCrashAlertActive = false;
 unsigned long crashDetectedTime = 0;
 bool sosTransmittedToApp = false;
+unsigned long cancelPressStart = 0;
 
 // BUZZER STATE TRACKING
 bool previousHelmetWorn = false;
@@ -77,25 +70,28 @@ struct GuardianTelemetryPacket {
 
 GuardianTelemetryPacket currentPacket;
 
-// ============================================================================
-// ESP-NOW UNICAST MAC PAIRING (RECEIVER ESP32 MAC ADDRESS)
-// Note: Each byte must be prefixed with 0x and separated by commas.
-// Receiver MAC: D4:E9:F4:84:B5:04
-// ============================================================================
+// ESP-NOW UNICAST MAC PAIRING (RECEIVER ESP32 MAC: D4:E9:F4:84:B5:04)
 esp_now_peer_info_t peerInfo;
 uint8_t receiverMAC[] = {0xD4, 0xE9, 0xF4, 0x84, 0xB5, 0x04};
 
-// BLE CONNECTION CALLBACKS
+// BLE CONNECTION & MTU CALLBACKS
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
       deviceConnected = true;
-      Serial.println("\n📱 [BLE] Guardian Android Phone Connected to Helmet!");
-    };
+      negotiatedMTU = 23; // Reset to safe default until phone negotiates higher MTU
+      Serial.println("\n📱 [BLE] Guardian Phone/App Connected!");
+    }
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
       Serial.println("\n📱 [BLE] Phone Disconnected. Advertising restarted.");
+      delay(100);
       pServer->getAdvertising()->start();
+    }
+
+    void onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
+      negotiatedMTU = param->mtu.mtu;
+      Serial.printf("📶 [BLE] Negotiated MTU Size: %d bytes\n", negotiatedMTU);
     }
 };
 
@@ -106,15 +102,16 @@ void initBLE() {
   pServer->setCallbacks(new MyServerCallbacks());
 
   BLEService *pService = pServer->createService(SERVICE_UUID);
+  
+  // Use READ + NOTIFY only (INDICATE can stall if app doesn't send ACKs)
   pCharacteristic = pService->createCharacteristic(
                       CHARACTERISTIC_UUID,
-                      BLECharacteristic::PROPERTY_READ   |
-                      BLECharacteristic::PROPERTY_WRITE  |
-                      BLECharacteristic::PROPERTY_NOTIFY |
-                      BLECharacteristic::PROPERTY_INDICATE
+                      BLECharacteristic::PROPERTY_READ |
+                      BLECharacteristic::PROPERTY_NOTIFY
                     );
 
   pCharacteristic->addDescriptor(new BLE2902());
+  pCharacteristic->setValue("{\"h\":0,\"a\":0,\"g\":1.0,\"c\":0}");
   pService->start();
 
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
@@ -131,7 +128,7 @@ void setup() {
   delay(1000);
 
   Serial.println("\n=======================================================");
-  Serial.println("  🛡️  GUARDIAN SMART HELMET - TRANSMITTER UNIT (USB)");
+  Serial.println("  🛡️  GUARDIAN SMART HELMET - TRANSMITTER UNIT (FIXED)");
   Serial.println("  \"Your Silent Co-Rider for Life & Safety.\"");
   Serial.println("=======================================================");
 
@@ -148,7 +145,7 @@ void setup() {
   Wire.begin(21, 22);
   Wire.setTimeOut(100);
   if (!mpu.begin()) {
-    Serial.println("⚠️ [WARN] MPU-6050 not detected. Check I2C wiring (SDA:21, SCL:22, VCC, GND).");
+    Serial.println("⚠️ [WARN] MPU-6050 not detected. Check I2C wiring (SDA:21, SCL:22).");
     mpuAvailable = false;
   } else {
     mpuAvailable = true;
@@ -157,9 +154,9 @@ void setup() {
     Serial.println("✅ MPU-6050 6-Axis IMU Initialized (Range: ±8G).");
   }
 
-  // 4. Wi-Fi Station Mode for ESP-NOW (No router needed)
+  // 4. Wi-Fi Station Mode for ESP-NOW (Disable power save for BLE coexistence)
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
+  esp_wifi_set_ps(WIFI_PS_NONE);
 
   if (esp_now_init() != ESP_OK) {
     Serial.println("❌ [ERROR] ESP-NOW initialization failed!");
@@ -179,7 +176,7 @@ void setup() {
     }
   }
 
-  // 5. Initialize BLE Server for Android Phone APK
+  // 5. Initialize BLE Server for Phone APK / Website
   initBLE();
 
   // 6. Startup Sound Check (Dual Chirp)
@@ -191,21 +188,17 @@ void setup() {
   delay(60);
   digitalWrite(BUZZER_PIN, LOW);
 
-  Serial.println("🚀 System Ready. Streaming live telemetry to APK & Paired Bike Unit...\n");
+  Serial.println("🚀 System Ready. Streaming live telemetry...\n");
 }
 
 void loop() {
   // -------------------------------------------------------------
   // 1. SENSOR READINGS
   // -------------------------------------------------------------
-  // IR Sensor: LOW = Skin detected / Helmet Worn
   bool helmetWorn = (digitalRead(IR_HELMET_PIN) == LOW);
-
-  // MQ-3 Breath Alcohol ADC reading
   int alcoholRaw = analogRead(MQ3_ALCOHOL_PIN);
   bool isDrunk = (alcoholRaw >= ALCOHOL_THRESHOLD_ADC);
 
-  // MPU-6050 Vector G-Force impact reading
   float totalG = 1.0;
   if (mpuAvailable) {
     sensors_event_t a, g, temp;
@@ -217,30 +210,36 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // 2. CRASH IMPACT DETECTION LOGIC
+  // 2. CRASH IMPACT DETECTION LOGIC (FIXED)
   // -------------------------------------------------------------
-  if (totalG >= CRASH_INSTANT_TRIGGER_G) {
-    // Severe accident (>= 4.0G) -> Immediate SOS
+  if (totalG >= CRASH_INSTANT_TRIGGER_G && !sosTransmittedToApp) {
     isCrashAlertActive = true;
     sosTransmittedToApp = true;
     Serial.printf("\n💥 [CRITICAL CRASH DETECTED] Force: %.2fG! IMMEDIATE SOS!\n", totalG);
-  } else if (totalG >= CRASH_THRESHOLD_G && !isCrashAlertActive) {
-    // Moderate impact (2.5G - 4.0G) -> 3-second grace window to cancel bumps
+  } else if (totalG >= CRASH_THRESHOLD_G && !isCrashAlertActive && !sosTransmittedToApp) {
     isCrashAlertActive = true;
     crashDetectedTime = millis();
     sosTransmittedToApp = false;
     Serial.printf("\n🚨 [MODERATE IMPACT] Force: %.2fG! 3s abort window active.\n", totalG);
   }
 
-  // False-Alarm Cancel Button
-  if (isCrashAlertActive && !sosTransmittedToApp && digitalRead(SOS_CANCEL_PIN) == LOW) {
-    isCrashAlertActive = false;
-    sosTransmittedToApp = false;
-    Serial.println("🛑 [FALSE ALARM] SOS cancelled by rider button.");
-    delay(300); // Debounce
+  // False-Alarm Cancel Button (Instant cancel during 3s window, or 1.5s hold to reset SOS)
+  if (digitalRead(SOS_CANCEL_PIN) == LOW) {
+    if (cancelPressStart == 0) cancelPressStart = millis();
+    
+    if (isCrashAlertActive && !sosTransmittedToApp) {
+      isCrashAlertActive = false;
+      Serial.println("🛑 [FALSE ALARM] SOS cancelled during grace window.");
+    } else if (sosTransmittedToApp && (millis() - cancelPressStart >= 1500)) {
+      isCrashAlertActive = false;
+      sosTransmittedToApp = false;
+      Serial.println("🛑 [SOS RESET] Confirmed SOS reset by 1.5s button hold.");
+    }
+  } else {
+    cancelPressStart = 0;
   }
 
-  // Confirm crash after countdown window
+  // Confirm crash after 3-second countdown window
   if (isCrashAlertActive && !sosTransmittedToApp) {
     if (millis() - crashDetectedTime >= CANCEL_WINDOW_MS) {
       sosTransmittedToApp = true;
@@ -251,27 +250,19 @@ void loop() {
   // -------------------------------------------------------------
   // 3. EXACT BUZZER LOGIC
   // -------------------------------------------------------------
-  // A. Transition check: Rider just wore the helmet
-  if (helmetWorn && !previousHelmetWorn) {
-    if (!isDrunk) {
-      // Alcohol NOT found -> Beep ONCE (180ms confirmation beep)
-      isSingleBeepActive = true;
-      singleBeepStartTime = millis();
-      digitalWrite(BUZZER_PIN, HIGH);
-      Serial.println("🔔 [HELMET WORN] Sober rider detected -> Single confirmation beep.");
-    }
+  if (helmetWorn && !previousHelmetWorn && !isDrunk) {
+    isSingleBeepActive = true;
+    singleBeepStartTime = millis();
+    digitalWrite(BUZZER_PIN, HIGH);
+    Serial.println("🔔 [HELMET WORN] Sober rider detected -> Single confirmation beep.");
   }
 
-  // B. Buzzer Priority Outputs:
   if (sosTransmittedToApp) {
-    // Case 1: Crash confirmed -> Beep CONTINUOUSLY!
     digitalWrite(BUZZER_PIN, HIGH);
   } else if (helmetWorn && isDrunk) {
-    // Case 2: Rider is DRUNK -> Beep CONTINUOUSLY until alcohol lowers!
     digitalWrite(BUZZER_PIN, HIGH);
-    isSingleBeepActive = false; // Cancel any single beep
+    isSingleBeepActive = false;
   } else if (isSingleBeepActive) {
-    // Case 3: Finishing the single confirmation beep (180ms)
     if (millis() - singleBeepStartTime < 180) {
       digitalWrite(BUZZER_PIN, HIGH);
     } else {
@@ -279,58 +270,72 @@ void loop() {
       isSingleBeepActive = false;
     }
   } else {
-    // Case 4: Normal / Safe / Helmet Removed -> Buzzer OFF
     digitalWrite(BUZZER_PIN, LOW);
   }
 
   previousHelmetWorn = helmetWorn;
 
   // -------------------------------------------------------------
-  // 4. SEND UNICAST TELEMETRY TO PAIRED BIKE RECEIVER (ESP-NOW)
+  // 4. SEND UNICAST TELEMETRY TO BIKE RECEIVER (ESP-NOW @ 10Hz)
   // -------------------------------------------------------------
-  currentPacket.helmetWorn = helmetWorn;
-  currentPacket.alcoholAdc = alcoholRaw;
-  currentPacket.totalG = totalG;
-  currentPacket.isCrashTriggered = sosTransmittedToApp;
+  static unsigned long lastEspNowSend = 0;
+  if (millis() - lastEspNowSend >= 100) {
+    lastEspNowSend = millis();
+    currentPacket.helmetWorn = helmetWorn;
+    currentPacket.alcoholAdc = alcoholRaw;
+    currentPacket.totalG = totalG;
+    currentPacket.isCrashTriggered = sosTransmittedToApp;
 
-  esp_now_send(receiverMAC, (uint8_t *) &currentPacket, sizeof(currentPacket));
+    esp_now_send(receiverMAC, (uint8_t *) &currentPacket, sizeof(currentPacket));
+  }
 
   // -------------------------------------------------------------
-  // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK (BLE)
+  // 5. STREAM CONTINUOUS TELEMETRY TO PHONE APK / SITE (BLE @ 5Hz)
   // -------------------------------------------------------------
   static unsigned long lastBleNotify = 0;
-  if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 80)) {
+  if (deviceConnected && pCharacteristic != NULL && (millis() - lastBleNotify >= 200)) {
     lastBleNotify = millis();
     char jsonBuffer[128];
-    // Put compact fields first so even if BLE MTU is 20 bytes, no data is ever lost:
-    snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"h\":%d,\"a\":%d,\"c\":%d,\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}",
-             helmetWorn ? 1 : 0,
-             alcoholRaw,
-             sosTransmittedToApp ? 1 : 0,
-             helmetWorn ? "true" : "false",
-             alcoholRaw,
-             totalG,
-             sosTransmittedToApp ? "true" : "false");
+
+    // If phone negotiated MTU >= 90 bytes, send full JSON; otherwise send valid <20-byte JSON
+    if (negotiatedMTU >= 90) {
+      snprintf(jsonBuffer, sizeof(jsonBuffer),
+               "{\"h\":%d,\"a\":%d,\"c\":%d,\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}\n",
+               helmetWorn ? 1 : 0,
+               alcoholRaw,
+               sosTransmittedToApp ? 1 : 0,
+               helmetWorn ? "true" : "false",
+               alcoholRaw,
+               totalG,
+               sosTransmittedToApp ? "true" : "false");
+    } else {
+      // Strictly <= 20 bytes so it NEVER gets truncated on default BLE MTU!
+      snprintf(jsonBuffer, sizeof(jsonBuffer),
+               "{\"h\":%d,\"a\":%d,\"c\":%d}",
+               helmetWorn ? 1 : 0,
+               alcoholRaw,
+               sosTransmittedToApp ? 1 : 0);
+    }
 
     pCharacteristic->setValue((uint8_t*)jsonBuffer, strlen(jsonBuffer));
     pCharacteristic->notify();
   }
 
   // -------------------------------------------------------------
-  // 6. SERIAL MONITOR TELEMETRY LOG (Every 400ms)
+  // 6. SERIAL MONITOR TELEMETRY LOG (Every 500ms)
   // -------------------------------------------------------------
   static unsigned long lastPrint = 0;
-  if (millis() - lastPrint >= 400) {
+  if (millis() - lastPrint >= 500) {
     lastPrint = millis();
-    Serial.printf("[HELMET TX] Worn: %s | Alcohol: %4d ADC (%s) | Impact: %5.2fG | BLE: %s | Status: %s\n",
-                  helmetWorn ? "YES ✅" : "NO ⚠️",
+    Serial.printf("[HELMET TX] Worn: %s | Alcohol: %4d (%s) | Impact: %5.2fG | BLE: %s (MTU:%d) | Status: %s\n",
+                  helmetWorn ? "YES" : "NO ",
                   alcoholRaw,
-                  isDrunk ? "DRUNK 🛑" : "SOBER ✅",
+                  isDrunk ? "DRUNK" : "SOBER",
                   totalG,
-                  deviceConnected ? "CONNECTED 📱" : "WAITING 📡",
-                  sosTransmittedToApp ? "CRASH SOS 🚨" : (isDrunk ? "DRUNK ALARM 🛑" : "SAFE ✅"));
+                  deviceConnected ? "CONNECTED" : "WAITING  ",
+                  negotiatedMTU,
+                  sosTransmittedToApp ? "CRASH SOS" : (isDrunk ? "DRUNK ALARM" : "SAFE"));
   }
 
-  delay(25); // ~40Hz loop for zero delay
+  delay(20);
 }

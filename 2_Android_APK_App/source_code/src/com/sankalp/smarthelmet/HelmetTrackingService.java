@@ -8,6 +8,7 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.content.Context;
 import android.content.Intent;
@@ -63,8 +64,8 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     private double currentSpeed = 0.0;
     private double currentHeading = 0.0;
     private double currentGForce = 1.02;
-    private boolean isHelmetWorn = true;
-    private int currentAlcohol = 380;
+    private boolean isHelmetWorn = false;
+    private int currentAlcohol = 0;
 
     private String serverUrl = "https://sanrakshan-eight.vercel.app";
     private float sensitivityThresholdG = 4.0f;
@@ -434,31 +435,77 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         }
     }
 
+    private Handler gattPollHandler;
+    private GattPollingTask gattPollRunnable;
+    private BluetoothGatt activeGatt;
+    private BluetoothGattCharacteristic activeCharacteristic;
+
+    private static class GattPollingTask implements Runnable {
+        private final java.lang.ref.WeakReference<HelmetTrackingService> serviceRef;
+        public GattPollingTask(HelmetTrackingService service) {
+            this.serviceRef = new java.lang.ref.WeakReference<>(service);
+        }
+        @Override
+        public void run() {
+            HelmetTrackingService svc = serviceRef.get();
+            if (svc != null && svc.activeGatt != null && svc.activeCharacteristic != null) {
+                try {
+                    svc.activeGatt.readCharacteristic(svc.activeCharacteristic);
+                } catch (SecurityException ignored) {}
+                if (svc.gattPollHandler != null && svc.gattPollRunnable != null) {
+                    svc.gattPollHandler.postDelayed(this, 180);
+                }
+            }
+        }
+    }
+
+    public void startActiveGattPolling(BluetoothGatt gatt, BluetoothGattCharacteristic ch) {
+        this.activeGatt = gatt;
+        this.activeCharacteristic = ch;
+        if (gattPollHandler == null) {
+            gattPollHandler = new Handler(Looper.getMainLooper());
+        }
+        stopActiveGattPolling();
+        gattPollRunnable = new GattPollingTask(this);
+        gattPollHandler.postDelayed(gattPollRunnable, 400);
+        Log.i(TAG, "Active GATT polling initiated at 180ms interval.");
+    }
+
+    public void stopActiveGattPolling() {
+        if (gattPollHandler != null && gattPollRunnable != null) {
+            gattPollHandler.removeCallbacks(gattPollRunnable);
+            gattPollRunnable = null;
+        }
+    }
+
     public void parseHelmetSensorData(String rawJson) {
         if (rawJson == null || rawJson.trim().isEmpty()) return;
         rawJson = rawJson.trim();
 
         try {
             boolean crash = false;
-            int alcohol = currentAlcohol;
-            boolean helmet = isHelmetWorn;
+            int alcohol = 0;
+            boolean helmet = false;
             double gForce = currentGForce;
 
             if (rawJson.startsWith("{")) {
                 try {
                     JSONObject json = new JSONObject(rawJson);
                     crash = json.optBoolean("crash", json.optBoolean("c", false)) || json.optInt("crash", json.optInt("c", 0)) == 1;
-                    alcohol = json.optInt("alcohol", json.optInt("a", currentAlcohol));
-                    if (json.has("helmet")) {
-                        helmet = json.optBoolean("helmet", true) || json.optInt("helmet", 1) == 1;
-                    } else if (json.has("h")) {
-                        helmet = json.optBoolean("h", true) || json.optInt("h", 1) == 1;
+                    alcohol = json.optInt("alcohol", json.optInt("a", 0));
+                    
+                    if (json.has("h")) {
+                        helmet = (json.optInt("h", 0) == 1) || json.optBoolean("h", false);
+                    } else if (json.has("helmet")) {
+                        helmet = json.optBoolean("helmet", false) || (json.optInt("helmet", 0) == 1);
+                    } else {
+                        helmet = false;
                     }
                     gForce = json.optDouble("gForce", json.optDouble("g", 1.0));
                 } catch (Exception parseEx) {
                     // Fallback regex extraction if JSON was truncated by small MTU
                     if (rawJson.contains("\"helmet\":false") || rawJson.contains("\"h\":0") || rawJson.contains("\"h\":false")) helmet = false;
-                    if (rawJson.contains("\"helmet\":true") || rawJson.contains("\"h\":1") || rawJson.contains("\"h\":true")) helmet = true;
+                    else if (rawJson.contains("\"helmet\":true") || rawJson.contains("\"h\":1") || rawJson.contains("\"h\":true")) helmet = true;
                     java.util.regex.Matcher ma = java.util.regex.Pattern.compile("\"a(?:lcohol)?\":(\\d+)").matcher(rawJson);
                     if (ma.find()) alcohol = Integer.parseInt(ma.group(1));
                     java.util.regex.Matcher mg = java.util.regex.Pattern.compile("\"g(?:Force)?\":([0-9.]+)").matcher(rawJson);
@@ -690,6 +737,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     public void onDestroy() {
         super.onDestroy();
         try {
+            stopActiveGattPolling();
             isSimulationActive = false;
             if (simulationHandler != null) simulationHandler.removeCallbacks(this);
             if (callEscalationManager != null) callEscalationManager.stopEscalation();

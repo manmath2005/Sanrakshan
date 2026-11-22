@@ -746,7 +746,6 @@ public class MainActivity extends Activity implements View.OnClickListener {
             tvGpsStatus.setTextColor(0xFF10B981);
             tvSyncStatus.setText(String.format(Locale.US, "🌐 Web Sync: [REAL PHONE GPS] -> %s", SERVER_URL));
         }
-        tvTelemetry.setText(String.format(Locale.US, "📊 Helmet: Worn ✅ | Alcohol: 0 mg/L | Impact: %.2fG", gForce));
     }
 
     public void updateBleUi(String status) {
@@ -764,12 +763,19 @@ public class MainActivity extends Activity implements View.OnClickListener {
         if (rawJson != null) {
             try {
                 JSONObject json = new JSONObject(rawJson);
-                boolean helmet = json.optBoolean("helmet", true);
-                int alcohol = json.optInt("alcohol", 0);
-                double gForce = json.optDouble("gForce", 1.02);
-                boolean crash = json.optBoolean("crash", false);
+                boolean helmet = false;
+                if (json.has("h")) {
+                    helmet = (json.optInt("h", 0) == 1) || json.optBoolean("h", false);
+                } else if (json.has("helmet")) {
+                    helmet = json.optBoolean("helmet", false) || (json.optInt("helmet", 0) == 1);
+                }
+                int alcohol = json.optInt("alcohol", json.optInt("a", 0));
+                double gForce = json.optDouble("gForce", json.optDouble("g", 1.02));
+                boolean crash = json.optBoolean("crash", json.optInt("c", 0) == 1);
 
-                String helmetStr = helmet ? "🪖 HELMET: WORN [OK] ✅" : "🪖 HELMET: REMOVED [X] ⚠️";
+                String helmetStr = helmet
+                    ? "🪖 HELMET: WORN (RIDER DETECTED) ✅"
+                    : "⚠️ HELMET: NOT WORN (REMOVED) 🛑";
                 String alcoholStr = (alcohol >= 800)
                     ? "🍺 ALCOHOL: DRUNK (" + alcohol + " ADC) 🛑"
                     : "🍺 ALCOHOL: SOBER (" + alcohol + " ADC) ✅";
@@ -777,8 +783,10 @@ public class MainActivity extends Activity implements View.OnClickListener {
                     ? "🚨 CRASH SOS TRIGGERED! (" + String.format(Locale.US, "%.2fG", gForce) + ")"
                     : "💥 IMPACT FORCE: " + String.format(Locale.US, "%.2fG", gForce);
 
-                tvTelemetry.setText(helmetStr + "\n" + alcoholStr + "\n" + crashStr);
-                tvTelemetry.setTextColor((alcohol >= 800 || crash) ? 0xFFEF4444 : 0xFF10B981);
+                if (tvTelemetry != null) {
+                    tvTelemetry.setText(helmetStr + "\n" + alcoholStr + "\n" + crashStr);
+                    tvTelemetry.setTextColor((alcohol >= 800 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
+                }
             } catch (Exception ignored) {}
         }
     }
