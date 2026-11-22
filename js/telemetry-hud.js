@@ -117,15 +117,24 @@ export function updateTelemetry(telemetry, riderProfile) {
   if (mpuY && sensors.gForceY !== undefined) mpuY.textContent = `${sensors.gForceY > 0 ? '+' : ''}${sensors.gForceY.toFixed(2)} g`;
   if (mpuZ && sensors.gForceZ !== undefined) mpuZ.textContent = `${sensors.gForceZ > 0 ? '+' : ''}${sensors.gForceZ.toFixed(2)} g`;
 
-  // 8. Ignition Relay
+  // 8. Ignition Relay / Starter Motor
   const relayStatus = document.getElementById('relay-status-text');
   const relayBadge = document.getElementById('relay-badge');
+  const relayIcon = document.getElementById('relay-indicator-icon');
   if (relayStatus && relayBadge) {
-    const isOn = sensors.ignitionRelay !== false && !alerts.isCrashDetected;
-    relayStatus.textContent = isOn ? 'ENGINE IGNITION ENABLED' : 'IGNITION CUTOFF (LOCKED)';
-    relayStatus.className = isOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
-    relayBadge.textContent = isOn ? 'CLOSED (ON)' : 'OPEN (OFF)';
-    relayBadge.className = isOn ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
+    const isSafe = (sensors.helmetWorn === true) && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 800 : true) && (!alerts || !alerts.isCrashDetected);
+    const isRelayOn = (sensors.ignitionRelay === true || sensors.ignitionRelay === 1) && isSafe;
+    relayStatus.textContent = isRelayOn ? 'STARTER ENGINE IGNITION ENABLED' : 'STARTER ENGINE IGNITION OFF';
+    relayStatus.className = isRelayOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
+    relayBadge.textContent = isRelayOn ? 'RUNNING (ON)' : 'LOCKED (OFF)';
+    relayBadge.className = isRelayOn 
+      ? 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase' 
+      : 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
+    if (relayIcon) {
+      relayIcon.className = isRelayOn 
+        ? 'w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400' 
+        : 'w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400';
+    }
   }
 }
 

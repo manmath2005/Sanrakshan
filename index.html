@@ -135,9 +135,6 @@
         <button id="mode-transmitter" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1">
           <i class="fa-solid fa-satellite-dish text-[10px]"></i> Phone GPS
         </button>
-        <button id="mode-simulator" class="px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1">
-          <i class="fa-solid fa-gamepad text-[10px]"></i> Demo Sim
-        </button>
       </div>
 
       <div id="cloud-status-badge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
@@ -335,16 +332,16 @@
         <!-- 4. Engine Starter Relay -->
         <div class="glass-card rounded-xl p-3 col-span-2 flex items-center justify-between">
           <div class="flex items-center space-x-3">
-            <div id="relay-indicator-icon" class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+            <div id="relay-indicator-icon" class="w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400">
               <i class="fa-solid fa-key"></i>
             </div>
             <div>
               <div class="text-xs text-slate-400">Starter / Ignition Relay</div>
-              <div id="relay-status-text" class="text-xs font-bold text-emerald-400">ENGINE IGNITION ENABLED</div>
+              <div id="relay-status-text" class="text-xs font-bold text-red-400">STARTER ENGINE IGNITION OFF</div>
             </div>
           </div>
-          <span id="relay-badge" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase">
-            CLOSED (ON)
+          <span id="relay-badge" class="text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase">
+            LOCKED (OFF)
           </span>
         </div>
 
@@ -389,58 +386,6 @@
               <i class="fa-solid fa-phone"></i> Call
             </a>
           </div>
-        </div>
-      </div>
-
-      <!-- REMOTE SAFETY CONFIGURATION PANEL -->
-      <div id="config-panel" class="glass-card rounded-xl p-4 border border-blue-500/30 bg-blue-950/10 space-y-3">
-        <div class="flex items-center justify-between">
-          <h4 class="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
-            <i class="fa-solid fa-sliders"></i>
-            <span>Remote Safety Sensitivity</span>
-          </h4>
-          <span id="sync-pill" class="text-[9px] font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full border border-slate-700">
-            Synced to Bike
-          </span>
-        </div>
-
-        <div>
-          <div class="flex justify-between items-center text-xs mb-1.5">
-            <span class="text-slate-300 font-medium">MPU Crash Threshold (G-Force):</span>
-            <span id="slider-g-val" class="font-mono font-bold text-blue-400 text-sm">2.5 G</span>
-          </div>
-          <input type="range" id="sensitivity-slider" min="1.0" max="4.0" step="0.1" value="2.5" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer" />
-          <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
-            <span>1.0G (High Alert)</span>
-            <span>2.5G (Standard)</span>
-            <span>4.0G (Severe Only)</span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5 pt-1">
-          <span class="text-[10px] text-slate-400 mr-1">Presets:</span>
-          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="1.8">
-            Strict Rental (1.8G)
-          </button>
-          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="2.5">
-            City (2.5G)
-          </button>
-          <button class="preset-btn px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] border border-slate-700 transition-all" data-val="3.2">
-            Off-Road (3.2G)
-          </button>
-        </div>
-      </div>
-
-      <!-- TEST SIMULATION CONTROLS -->
-      <div class="pt-2 border-t border-slate-800/80">
-        <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Simulation & Emergency Test</div>
-        <div class="grid grid-cols-2 gap-2">
-          <button id="btn-trigger-crash" class="px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
-            <i class="fa-solid fa-car-burst"></i> Simulate Crash
-          </button>
-          <button id="btn-trigger-sos" class="px-3 py-2 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 text-amber-400 border border-amber-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all">
-            <i class="fa-solid fa-triangle-exclamation"></i> Manual SOS
-          </button>
         </div>
       </div>
 
