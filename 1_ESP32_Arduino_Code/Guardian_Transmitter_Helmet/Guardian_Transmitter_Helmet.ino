@@ -1,18 +1,18 @@
 /**
-- ============================================================================
-- GUARDIAN SMART HELMET - TRANSMITTER UNIT (TRANSMITTER -> APK & BIKE RELAY)
-- Target Hardware: ESP32 DevKit V1 (30-Pin)
-- Power Source: Direct USB 5V
-- ============================================================================
-- SENSOR CONNECTIONS:
-- - ESP32 VIN                        -> Red Rail (+5V)
-- - ESP32 GND                        -> Blue Rail (GND)
-- - MQ-3 Alcohol Sensor (AO)         -> GPIO 34 (ADC1_CH6)
-- - TCRT5000 IR / Ultrasonic (DO)    -> GPIO 13 (INPUT_PULLUP: LOW = Worn)
-- - MPU-6050 6-Axis IMU (I2C)        -> SDA = GPIO 21, SCL = GPIO 22
-- - Emergency SOS Cancel Button      -> GPIO 4  (INPUT_PULLUP to GND)
-- - Warning Active Piezo Buzzer      -> GPIO 19 (HIGH = Beep)
-- ============================================================================
+ * ============================================================================
+ * GUARDIAN SMART HELMET - TRANSMITTER UNIT (TRANSMITTER -> APK & BIKE RELAY)
+ * Target Hardware: ESP32 DevKit V1 (30-Pin)
+ * Power Source: Direct USB 5V
+ * ============================================================================
+ * SENSOR CONNECTIONS:
+ * - ESP32 VIN                        -> Red Rail (+5V)
+ * - ESP32 GND                        -> Blue Rail (GND)
+ * - MQ-3 Alcohol Sensor (AO)         -> GPIO 34 (ADC1_CH6)
+ * - TCRT5000 IR / Proximity (DO)    -> GPIO 13 (INPUT_PULLUP: LOW = Worn)
+ * - MPU-6050 6-Axis IMU (I2C)        -> SDA = GPIO 21, SCL = GPIO 22
+ * - Emergency SOS Cancel Button      -> GPIO 4  (INPUT_PULLUP to GND)
+ * - Warning Active Piezo Buzzer      -> GPIO 19 (HIGH = Beep)
+ * ============================================================================
  */
 
 #include <esp_now.h>
@@ -129,7 +129,7 @@ void setup() {
   delay(1000);
 
   Serial.println("\n=======================================================");
-  Serial.println("  🛡️  GUARDIAN SMART HELMET - TRANSMITTER UNIT (FIXED)");
+  Serial.println("  🛡️  GUARDIAN SMART HELMET - TRANSMITTER UNIT");
   Serial.println("  \"Your Silent Co-Rider for Life & Safety.\"");
   Serial.println("=======================================================");
 
@@ -212,7 +212,7 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // 2. CRASH IMPACT DETECTION LOGIC (FIXED)
+  // 2. CRASH IMPACT DETECTION LOGIC
   // -------------------------------------------------------------
   if (totalG >= CRASH_INSTANT_TRIGGER_G && !sosTransmittedToApp) {
     isCrashAlertActive = true;
