@@ -103,8 +103,13 @@ export function updateTelemetry(telemetry, riderProfile) {
   }
 
   const mapCoordsText = document.getElementById('map-coords-text');
-  if (mapCoordsText && loc.latitude && loc.longitude) {
-    mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
+  // ONLY show coordinates when a real GPS fix is confirmed (isRealGps=true from phone hardware GPS)
+  if (mapCoordsText) {
+    if (loc.isRealGps === true && loc.latitude && loc.longitude) {
+      mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
+    } else {
+      mapCoordsText.textContent = 'Awaiting Mobile GPS Fix...';
+    }
   }
 
   // 4. Last Known Pre-Crash Coordinates
@@ -115,8 +120,10 @@ export function updateTelemetry(telemetry, riderProfile) {
     if (navBtn) navBtn.href = `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
   }
 
-  // Check if BLE hardware link is active
-  const isBleActive = (telemetry.bleConnected !== false && sensors.bleConnected !== false);
+  // Check if BLE hardware link is active.
+  // sensors.bleConnected must be explicitly TRUE (not just non-false).
+  // telemetry.bleConnected is not a top-level key; use sensors.bleConnected only.
+  const isBleActive = (sensors.bleConnected === true);
   const isHelmetPhysicallyWorn = isBleActive && (sensors.helmetWorn === true);
 
   // 5. Helmet Wear Status
@@ -182,8 +189,9 @@ export function updateTelemetry(telemetry, riderProfile) {
   const relayBadge = document.getElementById('relay-badge');
   const relayIcon = document.getElementById('relay-indicator-icon');
   if (relayStatus && relayBadge) {
-    const isSafe = isHelmetPhysicallyWorn && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 800 : true) && (!alerts || !alerts.isCrashDetected);
-    const isRelayOn = (sensors.ignitionRelay === true || sensors.ignitionRelay === 1) && isSafe;
+    // Ignition relay must require BLE active + helmet worn + sober + no crash
+    const isSafe = isBleActive && isHelmetPhysicallyWorn && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 800 : true) && (!alerts || !alerts.isCrashDetected);
+    const isRelayOn = isSafe && (sensors.ignitionRelay === true || sensors.ignitionRelay === 1);
     relayStatus.textContent = isRelayOn ? 'STARTER ENGINE IGNITION ENABLED' : 'STARTER ENGINE IGNITION OFF';
     relayStatus.className = isRelayOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';
     relayBadge.textContent = isRelayOn ? 'RUNNING (ON)' : 'LOCKED (OFF)';

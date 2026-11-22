@@ -238,19 +238,23 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (mode === 'transmitter') {
       if (btnTransmitter) btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
       const started = startPhoneGpsBroadcaster((phoneLoc) => {
+        // Phone GPS mode: only transmit real location data.
+        // Do NOT inject fake sensor values — sensors are only real when BLE helmet is connected.
+        // bleConnected=false tells the website to show standby state for all sensor cards.
         const payload = {
           timestamp: phoneLoc.timestamp,
           location: phoneLoc,
           sensors: {
-            helmetWorn: true,
-            alcoholAdc: 410,
-            alcoholStatus: 'SAFE',
-            gForceX: 0.1,
-            gForceY: 0.98,
-            gForceZ: 0.05,
-            totalG: 1.01,
+            bleConnected: false,
+            helmetWorn: false,
+            alcoholAdc: 0,
+            alcoholStatus: 'AWAITING HELMET BLE CONNECTION',
+            gForceX: 0.0,
+            gForceY: 0.0,
+            gForceZ: 0.0,
+            totalG: 1.0,
             vibrationLevel: 'NORMAL',
-            ignitionRelay: true
+            ignitionRelay: false
           },
           alerts: { isCrashDetected: false, isManualSosActive: false }
         };

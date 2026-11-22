@@ -350,7 +350,10 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         intent.putExtra("PROVIDER", location.getProvider() != null ? location.getProvider() : "HARDWARE_GPS");
         sendBroadcast(intent);
 
-        dispatchTelemetryToServer(false);
+        // Only push to server when BLE helmet is connected (sensors are live) OR during an active SOS
+        if (isBleConnected || isCrashTriggered) {
+            dispatchTelemetryToServer(isCrashTriggered);
+        }
     }
 
     @Override
@@ -699,6 +702,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
             root.put("bloodGroup", rider.bloodGroup);
             root.put("age", rider.age);
             root.put("timestamp", System.currentTimeMillis());
+            root.put("bleConnected", isBleConnected); // Top-level flag for API guard
 
             JSONObject loc = new JSONObject();
             loc.put("latitude", currentLat);
