@@ -28,7 +28,8 @@
 
 // PIN ASSIGNMENTS
 #define MQ3_ALCOHOL_PIN   34  // Analog Input for Breath Alcohol
-#define IR_HELMET_PIN     13  // Digital Input for Helmet Proximity (LOW = Worn)
+#define IR_HELMET_PIN     13  // Digital Input for Helmet Proximity
+#define IR_WORN_LEVEL     LOW // TCRT5000 D0 is LOW when obstacle (head) is near. Change to HIGH if your sensor is Active-HIGH.
 #define SOS_CANCEL_PIN    4   // False-Alarm Cancel Push Button (LOW = Pressed)
 #define BUZZER_PIN        19  // Active Piezo Warning Buzzer
 
@@ -195,7 +196,8 @@ void loop() {
   // -------------------------------------------------------------
   // 1. SENSOR READINGS
   // -------------------------------------------------------------
-  bool helmetWorn = (digitalRead(IR_HELMET_PIN) == LOW);
+  int irRaw = digitalRead(IR_HELMET_PIN);
+  bool helmetWorn = (irRaw == IR_WORN_LEVEL);
   int alcoholRaw = analogRead(MQ3_ALCOHOL_PIN);
   bool isDrunk = (alcoholRaw >= ALCOHOL_THRESHOLD_ADC);
 
@@ -327,8 +329,9 @@ void loop() {
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint >= 500) {
     lastPrint = millis();
-    Serial.printf("[HELMET TX] Worn: %s | Alcohol: %4d (%s) | Impact: %5.2fG | BLE: %s (MTU:%d) | Status: %s\n",
-                  helmetWorn ? "YES" : "NO ",
+    Serial.printf("[HELMET TX] IR(Pin13): %d [%s] | Alcohol: %4d (%s) | Impact: %5.2fG | BLE: %s (MTU:%d) | Status: %s\n",
+                  irRaw,
+                  helmetWorn ? "WORN" : "REMOVED",
                   alcoholRaw,
                   isDrunk ? "DRUNK" : "SOBER",
                   totalG,

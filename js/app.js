@@ -65,12 +65,19 @@ function showToast(msg) {
 }
 
 function handleIncomingTelemetry(telemetry, riderInfo) {
+  if (!telemetry || !telemetry.sensors) {
+    updateTelemetry(null, null);
+    return;
+  }
+
   latestTelemetry = telemetry;
 
-  // 1. Update Map
+  // 1. Update Map - only if real mobile GPS is active and fixed
   const loc = telemetry.location;
-  const isEmergency = telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive);
-  updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
+  if (loc && loc.latitude && loc.longitude && loc.isRealGps !== false) {
+    const isEmergency = telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive);
+    updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
+  }
 
   // 2. Update HUD
   const activeProfile = riderInfo || getRiderProfile(currentRideId);

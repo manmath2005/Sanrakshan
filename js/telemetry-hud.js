@@ -3,8 +3,40 @@
  * Updates gauges, sensor cards, SOS history feed, and Rider Profile.
  */
 
+export function resetToStandbyState() {
+  const badgeHelmet = document.getElementById('badge-helmet');
+  const interlockText = document.getElementById('helmet-interlock-text');
+  const cardHelmet = document.getElementById('card-helmet');
+  if (badgeHelmet && interlockText) {
+    if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-red-500/30 bg-red-950/10';
+    badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5 w-max';
+    badgeHelmet.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-[11px]"></i> NOT WORN (REMOVED)';
+    interlockText.textContent = 'IGNITION LOCKED';
+    interlockText.className = 'text-red-400 font-semibold';
+  }
+
+  const relayStatus = document.getElementById('relay-status-text');
+  const relayBadge = document.getElementById('relay-badge');
+  const relayIcon = document.getElementById('relay-indicator-icon');
+  if (relayStatus && relayBadge) {
+    relayStatus.textContent = 'STARTER ENGINE IGNITION OFF';
+    relayStatus.className = 'text-xs font-bold text-red-400';
+    relayBadge.textContent = 'LOCKED (OFF)';
+    relayBadge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-full bg-red-500/20 text-red-400 border border-red-500/40 uppercase';
+    if (relayIcon) {
+      relayIcon.className = 'w-9 h-9 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-400';
+    }
+  }
+
+  const mapSpeed = document.getElementById('map-speed');
+  if (mapSpeed) mapSpeed.textContent = '0';
+}
+
 export function updateTelemetry(telemetry, riderProfile) {
-  if (!telemetry) return;
+  if (!telemetry || !telemetry.sensors) {
+    resetToStandbyState();
+    return;
+  }
 
   const loc = telemetry.location || {};
   const sensors = telemetry.sensors || {};
