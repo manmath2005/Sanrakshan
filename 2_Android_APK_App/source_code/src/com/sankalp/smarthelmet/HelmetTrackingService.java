@@ -80,7 +80,6 @@ public class HelmetTrackingService extends Service implements LocationListener, 
             this.isHelmetWorn = false;
             this.currentAlcohol = 0;
             this.currentGForce = 1.0;
-            this.isCrashTriggered = false;
         }
     }
 
@@ -91,6 +90,8 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     private String serverUrl = "https://sanrakshan-eight.vercel.app";
     private float sensitivityThresholdG = 4.0f;
     private boolean isCrashTriggered = false;
+    private long lastCrashSosTimestamp = 0;
+    private long lastTelemetryPostTime = 0;
 
     @Override
     public void onCreate() {
@@ -683,8 +684,16 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             dispatchTelemetryToServer(crash);
 
-            if ((crash || currentGForce >= sensitivityThresholdG) && !isCrashTriggered) {
+            long now = System.currentTimeMillis();
+            boolean isCooldownActive = (now - lastCrashSosTimestamp < 60000); // 60s latch prevents duplicate crash alerts
+
+            if ((crash || currentGForce >= sensitivityThresholdG) && !isCrashTriggered && !isCooldownActive) {
+                isCrashTriggered = true;
+                lastCrashSosTimestamp = now;
                 handleCrashImpact(currentGForce);
+            } else if (!crash && currentGForce < sensitivityThresholdG && (now - lastCrashSosTimestamp >= 35000)) {
+                // Safely re-arm once the ESP32 emergency latch returns to normal (c=0) and buzzer period completes
+                isCrashTriggered = false;
             }
         } catch (Exception e) {
             Log.e(TAG, "Sensor parse error: " + e.getMessage());
@@ -807,6 +816,14 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
     private void dispatchTelemetryToServer(boolean isCrash) {
         if (serverUrl == null || serverUrl.trim().isEmpty()) return;
+
+        long now = System.currentTimeMillis();
+        // Rate-limit continuous BLE streaming to Vercel to ~1Hz (800ms) to prevent socket starvation.
+        // Critical emergency crash alerts bypass rate-limiting and send immediately!
+        if (!isCrash && (now - lastTelemetryPostTime < 800)) {
+            return;
+        }
+        lastTelemetryPostTime = now;
 
         try {
             RiderProfile rider = RiderProfile.load(this);

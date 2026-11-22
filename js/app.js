@@ -72,10 +72,11 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
 
   latestTelemetry = telemetry;
 
+  const loc = telemetry.location || {};
+  const isEmergency = Boolean(telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive));
+
   // 1. Update Map - only if real mobile GPS is active and fixed
-  const loc = telemetry.location;
-  if (loc && loc.latitude && loc.longitude && loc.isRealGps !== false) {
-    const isEmergency = telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive);
+  if (loc.latitude && loc.longitude && loc.isRealGps !== false) {
     updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
   }
 
@@ -84,7 +85,7 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
   updateTelemetry(telemetry, activeProfile);
 
   // 3. Handle Emergency Alerts
-  if (isEmergency) {
+  if (isEmergency && loc.latitude && loc.longitude) {
     triggerEmergencyAlert({
       ...telemetry.alerts,
       latitude: loc.latitude,

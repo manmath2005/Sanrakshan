@@ -368,6 +368,18 @@ void loop() {
   // -------------------------------------------------------------
   bool crashBuzzerActive = sosTransmittedToApp && (millis() - crashBuzzerStartTime < CRASH_BUZZER_MAX_MS);
 
+  // Auto-reset crash state after 35 seconds (30s buzzer + 5s safe grace window)
+  // This stops transmitting c:1 and peak G so the APK/website gracefully return to normal monitoring
+  // without triggering duplicate/repeated crashes!
+  if (sosTransmittedToApp && (millis() - crashBuzzerStartTime >= 35000)) {
+    sosTransmittedToApp = false;
+    isCrashAlertActive = false;
+    crashBuzzerStartTime = 0;
+    peakImpactG = 1.0;
+    digitalWrite(BUZZER_PIN, LOW);
+    Serial.println("🔄 [CRASH AUTO-RESET] 30s emergency alert window complete. Normal telemetry monitoring resumed.");
+  }
+
   if (crashBuzzerActive) {
     // Rapid pulsing emergency beeper (120ms ON, 120ms OFF)
     if ((millis() / 120) % 2 == 0) {

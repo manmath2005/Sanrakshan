@@ -41,6 +41,12 @@ export default async function handler(req, res) {
         receivedAt: Date.now()
       };
 
+      if (data.vehicleNumber) {
+        const vClean = String(data.vehicleNumber).toUpperCase().trim();
+        telemetryCache[vClean] = telemetryCache[rideId];
+        telemetryCache[vClean.replace(/[^A-Z0-9]/g, '')] = telemetryCache[rideId];
+      }
+
       return res.status(200).json({ success: true, rideId });
     } catch (e) {
       return res.status(400).json({ success: false, error: e.message });
@@ -48,8 +54,22 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'GET') {
-    const rideId = (req.query.rideId || 'BIKE-101').toUpperCase();
-    const data = telemetryCache[rideId];
+    const rawReqId = (req.query.rideId || 'BIKE-101').toUpperCase().trim();
+    const cleanReqId = rawReqId.replace(/[^A-Z0-9]/g, '');
+
+    let data = telemetryCache[rawReqId] || telemetryCache[cleanReqId];
+
+    // Fallback: If specific ID not directly found, check for ANY live telemetry streaming right now
+    if (!data) {
+      const allKeys = Object.keys(telemetryCache);
+      for (const k of allKeys) {
+        const item = telemetryCache[k];
+        if (item && item.sensors && (Date.now() - (item.receivedAt || item.timestamp || 0) <= 8000)) {
+          data = item;
+          break;
+        }
+      }
+    }
 
     if (!data) {
       return res.status(200).json({ 
