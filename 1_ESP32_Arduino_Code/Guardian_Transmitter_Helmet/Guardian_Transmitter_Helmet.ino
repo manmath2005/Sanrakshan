@@ -46,10 +46,10 @@
 #define INVERT_ALCOHOL_POLARITY true
 
 // SAFETY THRESHOLDS
-const int ALCOHOL_THRESHOLD_ADC      = 800;   // >= 800 ADC = Intoxicated
-const float CRASH_THRESHOLD_G        = 2.20;  // >= 2.2G = Moderate Impact (3s cancel window)
-const float CRASH_INSTANT_TRIGGER_G  = 3.50;  // >= 3.5G = High-Speed Crash (Immediate SOS)
-const unsigned long CANCEL_WINDOW_MS = 3000;  // 3-second grace window to cancel bumps
+const int ALCOHOL_THRESHOLD_ADC          = 800;   // >= 800 ADC = Intoxicated
+const float CRASH_THRESHOLD_G            = 4.00;  // >= 4.0G = Crash Impact Trigger
+const unsigned long CRASH_BUZZER_MAX_MS  = 30000; // Buzzer beeping automatically stops after 30 seconds
+const unsigned long CANCEL_WINDOW_MS     = 3000;  // 3-second grace window to cancel bumps
 
 // BLE DEFINITIONS (Matches Guardian Android App / Website)
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
@@ -69,6 +69,7 @@ uint8_t activeMpuAddr = 0x68;  // Active I2C address (0x68 or 0x69)
 bool isCrashAlertActive = false;
 unsigned long crashDetectedTime = 0;
 bool sosTransmittedToApp = false;
+unsigned long crashBuzzerStartTime = 0; // Timestamp when crash buzzer began (stops after 30s)
 unsigned long cancelPressStart = 0;
 float peakImpactG = 1.0;      // Latched peak G-force during impact
 
@@ -332,54 +333,48 @@ void loop() {
   }
 
   // -------------------------------------------------------------
-  // 2. CRASH IMPACT DETECTION LOGIC (WITH PEAK LATCH)
+  // 2. CRASH IMPACT DETECTION LOGIC (>= 4.0G & 30s BUZZER TIMEOUT)
   // -------------------------------------------------------------
-  if (totalG >= CRASH_INSTANT_TRIGGER_G && !sosTransmittedToApp) {
+  if (totalG >= CRASH_THRESHOLD_G && !sosTransmittedToApp) {
     isCrashAlertActive = true;
     sosTransmittedToApp = true;
+    crashBuzzerStartTime = millis(); // Start 30-second buzzer timer
     if (totalG > peakImpactG) peakImpactG = totalG;
-    Serial.printf("\n💥 [CRITICAL CRASH DETECTED] Force: %.2fG! IMMEDIATE SOS!\n", totalG);
-  } else if (totalG >= CRASH_THRESHOLD_G && !isCrashAlertActive && !sosTransmittedToApp) {
-    isCrashAlertActive = true;
-    crashDetectedTime = millis();
-    sosTransmittedToApp = false;
-    if (totalG > peakImpactG) peakImpactG = totalG;
-    Serial.printf("\n🚨 [MODERATE IMPACT] Force: %.2fG! 3s abort window active.\n", totalG);
+    Serial.printf("\n💥 [CRASH DETECTED] Force: %.2fG (>= 4.0G)! SOS Triggered! Buzzer active for 30s.\n", totalG);
   } else if (isCrashAlertActive || sosTransmittedToApp) {
     if (totalG > peakImpactG) peakImpactG = totalG;
   }
 
-  // False-Alarm Cancel Button (Instant cancel during 3s window, or 1.5s hold to reset SOS)
+  // False-Alarm Cancel Button (Press to cancel/reset SOS immediately)
   if (digitalRead(SOS_CANCEL_PIN) == LOW) {
     if (cancelPressStart == 0) cancelPressStart = millis();
     
-    if (isCrashAlertActive && !sosTransmittedToApp) {
-      isCrashAlertActive = false;
-      peakImpactG = 1.0;
-      Serial.println("🛑 [FALSE ALARM] SOS cancelled during grace window.");
-    } else if (sosTransmittedToApp && (millis() - cancelPressStart >= 1500)) {
-      isCrashAlertActive = false;
-      sosTransmittedToApp = false;
-      peakImpactG = 1.0;
-      Serial.println("🛑 [SOS RESET] Confirmed SOS reset by 1.5s button hold.");
+    if (sosTransmittedToApp || isCrashAlertActive) {
+      if (millis() - cancelPressStart >= 500) {
+        isCrashAlertActive = false;
+        sosTransmittedToApp = false;
+        crashBuzzerStartTime = 0;
+        peakImpactG = 1.0;
+        digitalWrite(BUZZER_PIN, LOW);
+        Serial.println("🛑 [SOS RESET] Crash alert and buzzer reset by cancel button.");
+      }
     }
   } else {
     cancelPressStart = 0;
   }
 
-  // Confirm crash after 3-second countdown window
-  if (isCrashAlertActive && !sosTransmittedToApp) {
-    if (millis() - crashDetectedTime >= CANCEL_WINDOW_MS) {
-      sosTransmittedToApp = true;
-      Serial.println("🚨 [CRASH CONFIRMED] Countdown expired -> SOS Active!");
-    }
-  }
+  // -------------------------------------------------------------
+  // 3. BUZZER ALARM LOGIC (Crash buzzer stops automatically after 30s)
+  // -------------------------------------------------------------
+  bool crashBuzzerActive = sosTransmittedToApp && (millis() - crashBuzzerStartTime < CRASH_BUZZER_MAX_MS);
 
-  // -------------------------------------------------------------
-  // 3. CONTINUOUS BUZZER ALARM LOGIC
-  // -------------------------------------------------------------
-  if (sosTransmittedToApp) {
-    digitalWrite(BUZZER_PIN, HIGH); // Continuous siren on Crash SOS
+  if (crashBuzzerActive) {
+    // Rapid pulsing emergency beeper (120ms ON, 120ms OFF)
+    if ((millis() / 120) % 2 == 0) {
+      digitalWrite(BUZZER_PIN, HIGH);
+    } else {
+      digitalWrite(BUZZER_PIN, LOW);
+    }
   } else if (isDrunk) {
     digitalWrite(BUZZER_PIN, HIGH); // BEEP CONTINUOUSLY WHEN ALCOHOL DETECTED
     isSingleBeepActive = false;
