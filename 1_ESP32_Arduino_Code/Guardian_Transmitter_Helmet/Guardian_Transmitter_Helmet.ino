@@ -108,16 +108,16 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
     void onDisconnect(BLEServer* pServer) {
       deviceConnected = false;
-      Serial.println("\n📱 [BLE] Phone Disconnected. Advertising restarted.");
+      Serial.println("\n📱 [BLE] Phone Disconnected. Restarting Advertising...");
       delay(100);
-      pServer->getAdvertising()->start();
+      BLEDevice::startAdvertising();
     }
 
     void onDisconnect(BLEServer* pServer, esp_ble_gatts_cb_param_t *param) {
       deviceConnected = false;
-      Serial.println("\n📱 [BLE] Phone Disconnected (Core 3.x callback). Advertising restarted.");
+      Serial.println("\n📱 [BLE] Phone Disconnected (Core 3.x). Restarting Advertising...");
       delay(100);
-      pServer->getAdvertising()->start();
+      BLEDevice::startAdvertising();
     }
 
     void onMtuChanged(BLEServer* pServer, esp_ble_gatts_cb_param_t* param) {
@@ -419,17 +419,13 @@ void loop() {
   bool isClientConnected = deviceConnected || (pServer != NULL && pServer->getConnectedCount() > 0);
 
   if (pCharacteristic != NULL) {
-    char jsonBuffer[140];
+    char jsonBuffer[64];
     snprintf(jsonBuffer, sizeof(jsonBuffer),
-             "{\"h\":%d,\"a\":%d,\"g\":%.2f,\"c\":%d,\"helmet\":%s,\"alcohol\":%d,\"gForce\":%.2f,\"crash\":%s}\n",
+             "{\"h\":%d,\"a\":%d,\"g\":%.2f,\"c\":%d}\n",
              helmetWorn ? 1 : 0,
              alcoholRaw,
              reportedG,
-             sosTransmittedToApp ? 1 : 0,
-             helmetWorn ? "true" : "false",
-             alcoholRaw,
-             reportedG,
-             sosTransmittedToApp ? "true" : "false");
+             sosTransmittedToApp ? 1 : 0);
 
     // ALWAYS update characteristic value so any BLE Read returns live data!
     pCharacteristic->setValue((uint8_t*)jsonBuffer, strlen(jsonBuffer));

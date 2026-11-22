@@ -10,8 +10,10 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.le.BluetoothLeScanner;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
@@ -52,6 +54,10 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     private boolean isSimulationActive = false;
     private boolean hasRealGpsFix = false;
     private float currentAccuracy = 999.0f;
+
+    // BT state receiver — restarts BLE scan automatically when user turns BT back ON
+    private BroadcastReceiver bluetoothStateReceiver;
+    private boolean isBleScanningOrConnected = false;
 
     private SensorManager sensorManager;
     private Sensor accelSensor;
@@ -141,6 +147,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         initLocationManager();
         initBluetoothLE();
         initSensors();
+        registerBluetoothStateReceiver();
     }
 
     @Override
@@ -425,18 +432,102 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         try {
             bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             if (bluetoothAdapter != null && bluetoothAdapter.isEnabled()) {
-                startBleScanning();
+                connectToSavedDeviceOrScan();
+            } else {
+                broadcastBleStatus("Bluetooth is OFF. Turn ON Bluetooth to connect Helmet.");
             }
         } catch (Exception e) {
             Log.e(TAG, "BLE Init Error: " + e.getMessage());
         }
     }
 
+    private static class FallbackScanTask implements Runnable {
+        private final java.lang.ref.WeakReference<HelmetTrackingService> serviceRef;
+        public FallbackScanTask(HelmetTrackingService service) {
+            this.serviceRef = new java.lang.ref.WeakReference<>(service);
+        }
+        @Override
+        public void run() {
+            HelmetTrackingService svc = serviceRef.get();
+            if (svc != null && !svc.isBleConnected) {
+                Log.i(TAG, "Direct connect to saved MAC still pending/idle. Initiating BLE background scan...");
+                svc.startBleScanning();
+            }
+        }
+    }
+
+    public void connectToSavedDeviceOrScan() {
+        try {
+            if (bluetoothAdapter == null) {
+                bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            }
+            if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+                broadcastBleStatus("Bluetooth is OFF. Turn ON Bluetooth to connect Helmet.");
+                return;
+            }
+
+            // Check if user has previously paired or connected to a Guardian Helmet MAC
+            SharedPreferences prefs = getSharedPreferences("SmartHelmetPrefs", Context.MODE_PRIVATE);
+            String savedMac = prefs.getString("SAVED_HELMET_MAC", null);
+            if (savedMac != null && BluetoothAdapter.checkBluetoothAddress(savedMac)) {
+                try {
+                    BluetoothDevice device = bluetoothAdapter.getRemoteDevice(savedMac);
+                    if (device != null) {
+                        Log.i(TAG, "⚡ Attempting immediate direct connect to saved Helmet MAC: " + savedMac);
+                        broadcastBleStatus("Reconnecting to saved Helmet (" + savedMac + ")... ⏳");
+                        stopScanAndConnect(device, scanCallback);
+
+                        // Fallback: If direct connection to saved MAC doesn't succeed in 4s, trigger active scan
+                        new Handler(Looper.getMainLooper()).postDelayed(new FallbackScanTask(this), 4000);
+                        return;
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Failed direct connect to saved MAC: " + e.getMessage());
+                }
+            }
+
+            // If no saved MAC exists yet, start general scan immediately
+            startBleScanning();
+        } catch (SecurityException e) {
+            Log.e(TAG, "BLE Permission: " + e.getMessage());
+        }
+    }
+
+    private void registerBluetoothStateReceiver() {
+        if (bluetoothStateReceiver == null) {
+            bluetoothStateReceiver = new BluetoothStateReceiver(this);
+            IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
+            registerReceiver(bluetoothStateReceiver, filter);
+        }
+    }
+
+    private void unregisterBluetoothStateReceiver() {
+        if (bluetoothStateReceiver != null) {
+            try {
+                unregisterReceiver(bluetoothStateReceiver);
+            } catch (Exception ignored) {}
+            bluetoothStateReceiver = null;
+        }
+    }
+
     public void startBleScanning() {
         try {
+            if (bluetoothAdapter == null) {
+                bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            }
+            if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled()) {
+                broadcastBleStatus("Bluetooth is disabled. Turn ON Bluetooth to scan.");
+                return;
+            }
             BluetoothLeScanner scanner = bluetoothAdapter.getBluetoothLeScanner();
-            if (scanner == null) return;
-            broadcastBleStatus("Scanning for Helmet BLE...");
+            if (scanner == null) {
+                new Handler(Looper.getMainLooper()).postDelayed(this::startBleScanning, 1000);
+                return;
+            }
+            broadcastBleStatus("Scanning for Guardian_Helmet BLE... 📡");
+            try {
+                scanner.stopScan(scanCallback);
+            } catch (Exception ignored) {}
             scanner.startScan(scanCallback);
         } catch (SecurityException e) {
             Log.e(TAG, "BLE Permission: " + e.getMessage());
@@ -445,9 +536,35 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
     public void stopScanAndConnect(BluetoothDevice device, HelmetBleScanCallback callback) {
         try {
-            bluetoothAdapter.getBluetoothLeScanner().stopScan(callback);
-            broadcastBleStatus("Connecting to " + device.getName());
-            bluetoothGatt = device.connectGatt(this, false, gattCallback);
+            if (bluetoothAdapter != null) {
+                BluetoothLeScanner scanner = bluetoothAdapter.getBluetoothLeScanner();
+                if (scanner != null) {
+                    try { scanner.stopScan(callback); } catch (Exception ignored) {}
+                }
+            }
+            String devName = "Guardian_Helmet";
+            try {
+                if (device.getName() != null) devName = device.getName();
+            } catch (SecurityException ignored) {}
+            broadcastBleStatus("Connecting to " + devName + " ⏳");
+
+            if (bluetoothGatt != null) {
+                try { bluetoothGatt.close(); } catch (Exception ignored) {}
+                bluetoothGatt = null;
+            }
+
+            if (device != null && device.getAddress() != null) {
+                getSharedPreferences("SmartHelmetPrefs", Context.MODE_PRIVATE).edit()
+                    .putString("SAVED_HELMET_MAC", device.getAddress())
+                    .apply();
+                Log.i(TAG, "Saved Helmet MAC for automatic reconnect: " + device.getAddress());
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                bluetoothGatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
+            } else {
+                bluetoothGatt = device.connectGatt(this, false, gattCallback);
+            }
         } catch (SecurityException e) {
             Log.e(TAG, "GATT Connect Error: " + e.getMessage());
         }
@@ -762,6 +879,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     public void onDestroy() {
         super.onDestroy();
         try {
+            unregisterBluetoothStateReceiver();
             stopActiveGattPolling();
             isSimulationActive = false;
             if (simulationHandler != null) simulationHandler.removeCallbacks(this);

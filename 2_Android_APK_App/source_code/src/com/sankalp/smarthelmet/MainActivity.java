@@ -213,11 +213,67 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
         applyMorphismDesign();
 
+        // 1. Request all critical safety permissions immediately on app launch (Location, SMS, Phone, BLE, Notifications)
+        requestAllPermissionsOnFirstLaunch();
+
         boolean hasProfile = RiderProfile.isProfileCreated(this);
         if (!hasProfile) {
             new Handler(Looper.getMainLooper()).postDelayed(this::showCreateProfileDialog, 400);
         } else if (!prefs.getBoolean("HAS_SEEN_TUTORIAL_V3", false)) {
             new Handler(Looper.getMainLooper()).postDelayed(this::showOnboardingTutorialDialog, 400);
+        }
+    }
+
+    private void requestAllPermissionsOnFirstLaunch() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            java.util.List<String> needed = new java.util.ArrayList<>();
+            for (String perm : PERMISSIONS_BASE) {
+                if (checkSelfPermission(perm) != PackageManager.PERMISSION_GRANTED) {
+                    needed.add(perm);
+                }
+            }
+            if (Build.VERSION.SDK_INT >= 31) {
+                if (checkSelfPermission("android.permission.BLUETOOTH_SCAN") != PackageManager.PERMISSION_GRANTED) {
+                    needed.add("android.permission.BLUETOOTH_SCAN");
+                }
+                if (checkSelfPermission("android.permission.BLUETOOTH_CONNECT") != PackageManager.PERMISSION_GRANTED) {
+                    needed.add("android.permission.BLUETOOTH_CONNECT");
+                }
+            }
+            if (Build.VERSION.SDK_INT >= 33) {
+                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                    needed.add("android.permission.POST_NOTIFICATIONS");
+                }
+            }
+
+            if (!needed.isEmpty()) {
+                Log.i(TAG, "Requesting " + needed.size() + " required safety permissions on first launch...");
+                requestPermissions(needed.toArray(new String[0]), 101);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 101) {
+            boolean allGranted = true;
+            for (int res : grantResults) {
+                if (res != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+            if (allGranted) {
+                Toast.makeText(this, "✅ All Guardian Safety Permissions Granted!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "⚠️ Please allow all permissions (Location, Bluetooth, SMS) for full safety protection.", Toast.LENGTH_LONG).show();
+            }
+            // Auto start service if logged in
+            boolean savedAuth = prefs.getBoolean("IS_LOGGED_IN", false);
+            if (savedAuth && !isServiceRunning) {
+                ensureServiceStarted();
+            }
         }
     }
 
