@@ -27,6 +27,15 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, message: `Cache cleared for ${rideId}` });
       }
 
+      // Hardware safety interlock guard: if BLE is not active, helmet and relay cannot be active
+      if (data.sensors) {
+        if (data.sensors.bleConnected === false || data.bleConnected === false) {
+          data.sensors.helmetWorn = false;
+          data.sensors.ignitionRelay = false;
+          data.sensors.alcoholAdc = 0;
+        }
+      }
+
       telemetryCache[rideId] = {
         ...data,
         receivedAt: Date.now()

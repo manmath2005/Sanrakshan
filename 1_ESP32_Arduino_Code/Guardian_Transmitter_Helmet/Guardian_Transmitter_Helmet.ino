@@ -9,7 +9,12 @@
  * - ESP32 GND                        -> Blue Rail (GND)
  * - MQ-3 Alcohol Sensor (AO/DO)      -> GPIO 34 (ADC1_CH6)
  * - TCRT5000 IR / Proximity (DO)    -> GPIO 13 (INPUT_PULLUP: LOW = Worn)
- * - MPU-6050 6-Axis IMU (I2C)        -> SDA = GPIO 21, SCL = GPIO 22
+ * - MPU-6050 6-Axis IMU (I2C):
+ *     * VCC                          -> ESP32 VIN (5V) or 3.3V
+ *     * GND                          -> ESP32 GND
+ *     * SCL                          -> GPIO 22
+ *     * SDA                          -> GPIO 21
+ *     * AD0                          -> ESP32 GND (Sets I2C Address to 0x68)
  * - Emergency SOS Cancel Button      -> GPIO 4  (INPUT_PULLUP to GND)
  * - Warning Active Piezo Buzzer      -> GPIO 19 (HIGH = Beep)
  * ============================================================================
@@ -37,14 +42,13 @@
 #define IR_WORN_LEVEL     LOW
 
 // 2. MQ-3 Alcohol Sensor Polarity:
-// Set to 'true' if your sensor gives HIGHER voltage in clean air and DROPS when alcohol is detected (or if wired to DO).
-// This maps: clean air = low SOBER value (<800), alcohol detected = high DRUNK value (>800).
+// Maps clean air (high raw ADC) to 0 (SOBER), and alcohol exposure (low raw ADC) to high ADC (>800 = DRUNK).
 #define INVERT_ALCOHOL_POLARITY true
 
 // SAFETY THRESHOLDS
 const int ALCOHOL_THRESHOLD_ADC      = 800;   // >= 800 ADC = Intoxicated
-const float CRASH_THRESHOLD_G        = 2.50;  // >= 2.5G = Moderate Impact (3s cancel window)
-const float CRASH_INSTANT_TRIGGER_G  = 4.00;  // >= 4.0G = High-Speed Crash (Immediate SOS)
+const float CRASH_THRESHOLD_G        = 2.20;  // >= 2.2G = Moderate Impact (3s cancel window)
+const float CRASH_INSTANT_TRIGGER_G  = 3.50;  // >= 3.5G = High-Speed Crash (Immediate SOS)
 const unsigned long CANCEL_WINDOW_MS = 3000;  // 3-second grace window to cancel bumps
 
 // BLE DEFINITIONS (Matches Guardian Android App / Website)
@@ -59,11 +63,14 @@ uint16_t negotiatedMTU = 23; // Default BLE MTU is 23 bytes (20 bytes payload)
 // SENSOR & STATE VARIABLES
 Adafruit_MPU6050 mpu;
 bool mpuAvailable = false;
+bool rawMpuMode = false;      // True if direct Wire fallback is used (supports all MPU-6050/6500 clones)
+uint8_t activeMpuAddr = 0x68;  // Active I2C address (0x68 or 0x69)
+
 bool isCrashAlertActive = false;
 unsigned long crashDetectedTime = 0;
 bool sosTransmittedToApp = false;
 unsigned long cancelPressStart = 0;
-float peakImpactG = 1.0; // Latched peak G-force during impact
+float peakImpactG = 1.0;      // Latched peak G-force during impact
 
 // BUZZER STATE TRACKING
 bool previousHelmetWorn = false;
@@ -133,14 +140,65 @@ void initBLE() {
   Serial.println("✅ BLE Server Active: Advertising as 'Guardian_Helmet'");
 }
 
+// -------------------------------------------------------------
+// I2C BUS SCANNER & MPU INITIALIZATION (Dual Mode)
+// -------------------------------------------------------------
+void scanI2CBus() {
+  Serial.println("🔍 [I2C Scanner] Scanning bus on SDA:GPIO 21, SCL:GPIO 22...");
+  byte found = 0;
+  for (byte addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    if (Wire.endTransmission() == 0) {
+      Serial.printf("   📍 [I2C Device Found] Address: 0x%02X\n", addr);
+      found++;
+    }
+  }
+  if (found == 0) {
+    Serial.println("   ❌ [I2C Device NOT Found] No devices responded!");
+    Serial.println("      -> Check wiring: MPU VCC to VIN (5V) or 3.3V, GND to GND, SCL to GPIO 22, SDA to GPIO 21, AD0 to GND.");
+  } else {
+    Serial.printf("   ✅ [I2C Scan Complete] Found %d device(s).\n", found);
+  }
+}
+
+bool rawMpuWake(uint8_t addr) {
+  // Wake up MPU (clear SLEEP bit in PWR_MGMT_1 register 0x6B)
+  Wire.beginTransmission(addr);
+  Wire.write(0x6B);
+  Wire.write(0x00);
+  if (Wire.endTransmission() != 0) return false;
+
+  delay(20);
+
+  // Set Accelerometer Range to +/- 8G (register 0x1C = 0x10)
+  Wire.beginTransmission(addr);
+  Wire.write(0x1C);
+  Wire.write(0x10);
+  if (Wire.endTransmission() != 0) return false;
+
+  activeMpuAddr = addr;
+  rawMpuMode = true;
+  mpuAvailable = true;
+  Serial.printf("✅ Direct Wire I2C MPU Initialized at 0x%02X (Range: ±8G).\n", addr);
+  return true;
+}
+
 bool initMpuSensor() {
+  // 1. Try Adafruit MPU6050 driver (at 0x68, then 0x69)
   if (mpu.begin(0x68) || mpu.begin(0x69)) {
     mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
     mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
     mpuAvailable = true;
-    Serial.println("✅ MPU-6050 6-Axis IMU Initialized (Range: ±8G).");
+    rawMpuMode = false;
+    Serial.println("✅ Adafruit MPU-6050 6-Axis IMU Initialized (Range: ±8G).");
     return true;
   }
+
+  // 2. Fallback: Direct Wire register wake-up (works with all MPU-6050/6500 clones even if WHO_AM_I is 0x70/0x72/0x98)
+  if (rawMpuWake(0x68) || rawMpuWake(0x69)) {
+    return true;
+  }
+
   mpuAvailable = false;
   return false;
 }
@@ -163,12 +221,11 @@ void setup() {
   // 2. Analog ADC Setup (11dB = Full 0 - 3.3V range for MQ-3)
   analogSetPinAttenuation(MQ3_ALCOHOL_PIN, ADC_11db);
 
-  // 3. I2C Bus & MPU-6050 Initialization (Checks both 0x68 and 0x69 addresses)
+  // 3. I2C Bus & MPU-6050 Initialization
   Wire.begin(21, 22);
   Wire.setTimeOut(100);
-  if (!initMpuSensor()) {
-    Serial.println("⚠️ [WARN] MPU-6050 not detected at 0x68 or 0x69. Check I2C wiring (SDA:21, SCL:22, VCC:3.3V/5V, GND).");
-  }
+  scanI2CBus();
+  initMpuSensor();
 
   // 4. Wi-Fi Station Mode for ESP-NOW (Disable power save for BLE coexistence)
   WiFi.mode(WIFI_STA);
@@ -227,20 +284,37 @@ void loop() {
   }
   bool isDrunk = (alcoholRaw >= ALCOHOL_THRESHOLD_ADC);
 
-  // MPU-6050 Accelerometer Reading (with auto-retry if disconnected earlier)
+  // MPU-6050 Accelerometer Reading (with auto-retry and periodic I2C scan if disconnected)
   static unsigned long lastMpuRetry = 0;
-  if (!mpuAvailable && (millis() - lastMpuRetry >= 2000)) {
+  if (!mpuAvailable && (millis() - lastMpuRetry >= 3000)) {
     lastMpuRetry = millis();
+    scanI2CBus();
     initMpuSensor();
   }
 
   float totalG = 1.0;
   if (mpuAvailable) {
-    sensors_event_t a, g, temp;
-    if (mpu.getEvent(&a, &g, &temp)) {
-      totalG = sqrt(a.acceleration.x * a.acceleration.x +
-                    a.acceleration.y * a.acceleration.y +
-                    a.acceleration.z * a.acceleration.z) / 9.80665;
+    if (!rawMpuMode) {
+      sensors_event_t a, g, temp;
+      if (mpu.getEvent(&a, &g, &temp)) {
+        totalG = sqrt(a.acceleration.x * a.acceleration.x +
+                      a.acceleration.y * a.acceleration.y +
+                      a.acceleration.z * a.acceleration.z) / 9.80665;
+      }
+    } else {
+      // Direct raw I2C read from registers 0x3B..0x40
+      Wire.beginTransmission(activeMpuAddr);
+      Wire.write(0x3B);
+      if (Wire.endTransmission(false) == 0 && Wire.requestFrom(activeMpuAddr, (uint8_t)6) == 6) {
+        int16_t rx = (Wire.read() << 8) | Wire.read();
+        int16_t ry = (Wire.read() << 8) | Wire.read();
+        int16_t rz = (Wire.read() << 8) | Wire.read();
+        // Scale for +/- 8G: 4096 LSB/g
+        float ax = (float)rx / 4096.0;
+        float ay = (float)ry / 4096.0;
+        float az = (float)rz / 4096.0;
+        totalG = sqrt(ax * ax + ay * ay + az * az);
+      }
     }
   }
 
@@ -291,11 +365,8 @@ void loop() {
   // -------------------------------------------------------------
   // 3. CONTINUOUS BUZZER ALARM LOGIC
   // -------------------------------------------------------------
-  // 1. Crash Alarm -> Continuous high pitch
-  // 2. Drunk Alarm -> Continuous loud beep (works whether helmet is on head or tested on bench)
-  // 3. Helmet Put On -> Single short chirp confirmation
   if (sosTransmittedToApp) {
-    digitalWrite(BUZZER_PIN, HIGH);
+    digitalWrite(BUZZER_PIN, HIGH); // Continuous siren on Crash SOS
   } else if (isDrunk) {
     digitalWrite(BUZZER_PIN, HIGH); // BEEP CONTINUOUSLY WHEN ALCOHOL DETECTED
     isSingleBeepActive = false;
@@ -364,6 +435,7 @@ void loop() {
   static unsigned long lastPrint = 0;
   if (millis() - lastPrint >= 500) {
     lastPrint = millis();
+    const char* mpuStatus = mpuAvailable ? (rawMpuMode ? "OK(RAW)" : "OK") : "DISCONNECTED";
     Serial.printf("[HELMET TX] IR(13):%d [%s] | Alcohol: raw=%4d -> %4d [%s] | Impact: %5.2fG (Peak:%5.2fG) | MPU:%s | BLE:%s\n",
                   irRaw,
                   helmetWorn ? "WORN" : "REMOVED",
@@ -372,7 +444,7 @@ void loop() {
                   isDrunk ? "DRUNK! 🍺" : "SOBER ✅",
                   totalG,
                   reportedG,
-                  mpuAvailable ? "OK" : "DISCONNECTED",
+                  mpuStatus,
                   deviceConnected ? "CONNECTED" : "WAITING");
   }
 

@@ -28,8 +28,30 @@ export function resetToStandbyState() {
     }
   }
 
+  const alcoholAdc = document.getElementById('alcohol-adc-val');
+  const alcoholBadge = document.getElementById('alcohol-status-badge');
+  const alcoholProgress = document.getElementById('alcohol-progress');
+  if (alcoholAdc && alcoholBadge && alcoholProgress) {
+    alcoholAdc.textContent = '0';
+    alcoholBadge.textContent = '0.00% SOBER';
+    alcoholBadge.className = 'text-[10px] font-bold text-emerald-400 uppercase';
+    alcoholProgress.style.width = '0%';
+    alcoholProgress.className = 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300';
+  }
+
+  const mpuTotal = document.getElementById('mpu-total-g');
+  const vibBadge = document.getElementById('vibration-badge');
+  if (mpuTotal && vibBadge) {
+    mpuTotal.textContent = '1.00 G';
+    vibBadge.textContent = 'STANDBY';
+    vibBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
+  }
+
   const mapSpeed = document.getElementById('map-speed');
   if (mapSpeed) mapSpeed.textContent = '0';
+
+  const mapCoordsText = document.getElementById('map-coords-text');
+  if (mapCoordsText) mapCoordsText.textContent = 'Awaiting Mobile GPS Fix...';
 }
 
 export function updateTelemetry(telemetry, riderProfile) {
@@ -93,12 +115,16 @@ export function updateTelemetry(telemetry, riderProfile) {
     if (navBtn) navBtn.href = `https://maps.google.com/?q=${loc.latitude},${loc.longitude}`;
   }
 
+  // Check if BLE hardware link is active
+  const isBleActive = (telemetry.bleConnected !== false && sensors.bleConnected !== false);
+  const isHelmetPhysicallyWorn = isBleActive && (sensors.helmetWorn === true);
+
   // 5. Helmet Wear Status
   const badgeHelmet = document.getElementById('badge-helmet');
   const interlockText = document.getElementById('helmet-interlock-text');
   const cardHelmet = document.getElementById('card-helmet');
   if (badgeHelmet && interlockText) {
-    if (sensors.helmetWorn) {
+    if (isHelmetPhysicallyWorn) {
       if (cardHelmet) cardHelmet.className = 'glass-card rounded-xl p-3 flex flex-col justify-between border-emerald-500/30 bg-emerald-950/10';
       badgeHelmet.className = 'px-2 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 w-max';
       badgeHelmet.innerHTML = '<i class="fa-solid fa-shield-halved text-[11px]"></i> Worn & Locked';
@@ -118,7 +144,7 @@ export function updateTelemetry(telemetry, riderProfile) {
   const alcoholBadge = document.getElementById('alcohol-status-badge');
   const alcoholProgress = document.getElementById('alcohol-progress');
   if (alcoholAdc && alcoholBadge && alcoholProgress) {
-    const val = sensors.alcoholAdc || 0;
+    const val = isBleActive ? (sensors.alcoholAdc || 0) : 0;
     alcoholAdc.textContent = val;
     const isSafe = (sensors.alcoholStatus === 'SAFE' || val < 1500);
     alcoholBadge.textContent = isSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
@@ -131,14 +157,16 @@ export function updateTelemetry(telemetry, riderProfile) {
   const mpuTotal = document.getElementById('mpu-total-g');
   const vibBadge = document.getElementById('vibration-badge');
   if (mpuTotal && vibBadge) {
-    const totalG = sensors.totalG ? sensors.totalG.toFixed(2) : '1.02';
+    const totalG = isBleActive && sensors.totalG ? sensors.totalG.toFixed(2) : '1.00';
     mpuTotal.textContent = `${totalG} G`;
     if (sensors.vibrationLevel === 'CRASH' || alerts.isCrashDetected) {
       vibBadge.textContent = 'CRASH IMPACT!';
       vibBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse';
     } else {
-      vibBadge.textContent = 'NORMAL RIDE';
-      vibBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20';
+      vibBadge.textContent = isBleActive ? 'NORMAL RIDE' : 'STANDBY';
+      vibBadge.className = isBleActive 
+        ? 'text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20'
+        : 'text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700';
     }
   }
 
@@ -154,7 +182,7 @@ export function updateTelemetry(telemetry, riderProfile) {
   const relayBadge = document.getElementById('relay-badge');
   const relayIcon = document.getElementById('relay-indicator-icon');
   if (relayStatus && relayBadge) {
-    const isSafe = (sensors.helmetWorn === true) && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 800 : true) && (!alerts || !alerts.isCrashDetected);
+    const isSafe = isHelmetPhysicallyWorn && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 800 : true) && (!alerts || !alerts.isCrashDetected);
     const isRelayOn = (sensors.ignitionRelay === true || sensors.ignitionRelay === 1) && isSafe;
     relayStatus.textContent = isRelayOn ? 'STARTER ENGINE IGNITION ENABLED' : 'STARTER ENGINE IGNITION OFF';
     relayStatus.className = isRelayOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';

@@ -66,6 +66,21 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     private double currentGForce = 1.02;
     private boolean isHelmetWorn = false;
     private int currentAlcohol = 0;
+    private boolean isBleConnected = false;
+
+    public void setBleConnected(boolean connected) {
+        this.isBleConnected = connected;
+        if (!connected) {
+            this.isHelmetWorn = false;
+            this.currentAlcohol = 0;
+            this.currentGForce = 1.0;
+            this.isCrashTriggered = false;
+        }
+    }
+
+    public boolean isBleConnected() {
+        return isBleConnected;
+    }
 
     private String serverUrl = "https://sanrakshan-eight.vercel.app";
     private float sensitivityThresholdG = 4.0f;
@@ -695,14 +710,18 @@ public class HelmetTrackingService extends Service implements LocationListener, 
             root.put("location", loc);
 
             JSONObject sens = new JSONObject();
-            boolean isIgnitionActive = !isCrash && isHelmetWorn && (currentAlcohol < 800);
-            sens.put("helmetWorn", isHelmetWorn);
-            sens.put("alcoholAdc", currentAlcohol);
-            sens.put("alcoholStatus", (currentAlcohol >= 800 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER"));
-            sens.put("totalG", currentGForce);
-            sens.put("gForceX", 0.1);
-            sens.put("gForceY", 0.98);
-            sens.put("gForceZ", 0.05);
+            // Ignition relay is strictly OFF unless motor running is explicitly confirmed
+            boolean isIgnitionActive = false;
+            sens.put("bleConnected", isBleConnected);
+            sens.put("helmetWorn", isBleConnected && isHelmetWorn);
+            sens.put("alcoholAdc", isBleConnected ? currentAlcohol : 0);
+            sens.put("alcoholStatus", isBleConnected 
+                ? (currentAlcohol >= 800 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
+                : "AWAITING HELMET BLE CONNECTION");
+            sens.put("totalG", isBleConnected ? currentGForce : 1.0);
+            sens.put("gForceX", isBleConnected ? 0.1 : 0.0);
+            sens.put("gForceY", isBleConnected ? 0.98 : 0.0);
+            sens.put("gForceZ", isBleConnected ? 0.05 : 0.0);
             sens.put("vibrationLevel", (isCrash ? "CRASH" : "NORMAL"));
             sens.put("ignitionRelay", isIgnitionActive);
             root.put("sensors", sens);
