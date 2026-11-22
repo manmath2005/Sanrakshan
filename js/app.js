@@ -8,11 +8,13 @@ import { initMap, updateRiderLocation, centerOnRider, toggleTrail, switchBasemap
 import { updateTelemetry, renderSosHistoryList } from './telemetry-hud.js';
 import { initSafetyControls, triggerEmergencyAlert, dismissEmergencyAlert } from './safety-controls.js';
 import { syncManager } from './firebase-sync.js';
+import { startPhoneGpsBroadcaster, stopPhoneGpsBroadcaster } from './phone-transmitter.js';
+import { startRideSimulator, stopRideSimulator } from './simulator.js';
+
 // Application State
 let currentRideId = '';
 let currentMode = 'viewer'; // 'viewer' | 'transmitter' | 'simulator'
 let latestTelemetry = null;
-let dismissedAlertTimestamp = parseInt(sessionStorage.getItem('smart_helmet_dismissed_alert_ts') || '0', 10);
 
 // Rider Database Records (Mock/Cloud)
 const riderProfiles = {
@@ -21,10 +23,31 @@ const riderProfiles = {
   'FLEET-007': { riderName: "Rohan Sharma", vehicleNumber: "MH-12-EF-9012", emergencyContact: "+91 9988776655", rentalCompany: "SafeRide Rentals" }
 };
 
+const registeredVehicles = {
+  'MH-12-AB-1234': 'BIKE-101',
+  'MH12AB1234': 'BIKE-101',
+  'BIKE-101': 'BIKE-101',
+  'MH-14-CD-5678': 'BIKE-102',
+  'MH14CD5678': 'BIKE-102',
+  'BIKE-102': 'BIKE-102',
+  'MH-12-EF-9012': 'FLEET-007',
+  'MH12EF9012': 'FLEET-007',
+  'FLEET-007': 'FLEET-007'
+};
+
+export function isValidBikeNumber(input) {
+  if (!input) return false;
+  const clean = input.trim().toUpperCase().replace(/\s+/g, '-');
+  if (registeredVehicles[clean] || registeredVehicles[clean.replace(/-/g, '')]) return true;
+  const regex = /^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i;
+  return regex.test(clean);
+}
+
 function getRiderProfile(id) {
-  return riderProfiles[id] || {
+  const resolved = registeredVehicles[id] || id;
+  return riderProfiles[resolved] || {
     riderName: `Rider (${id})`,
-    vehicleNumber: `MH-12-${id}`,
+    vehicleNumber: id.includes('-') && id.length >= 8 ? id : `MH-12-${id}`,
     emergencyContact: "+91 9876543210",
     rentalCompany: "Private Owner"
   };
@@ -48,29 +71,21 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
   // 1. Update Map
   const loc = telemetry.location;
   const isEmergency = telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive);
-  if (loc && loc.latitude && loc.longitude) {
-    updateRiderLocation(loc.latitude, loc.longitude, loc.heading || 0, loc.accuracyMeters || 5, loc.speedKmph || 0, isEmergency);
-  }
+  updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
 
   // 2. Update HUD
   const activeProfile = riderInfo || getRiderProfile(currentRideId);
   updateTelemetry(telemetry, activeProfile);
 
-  // 3. Handle Emergency Alerts (only if not already dismissed by user)
+  // 3. Handle Emergency Alerts
   if (isEmergency) {
-    const alertTs = telemetry.timestamp || telemetry.serverTimestamp || Date.now();
-    if (alertTs > dismissedAlertTimestamp) {
-      triggerEmergencyAlert({
-        ...telemetry.alerts,
-        latitude: loc ? loc.latitude : undefined,
-        longitude: loc ? loc.longitude : undefined,
-        totalG: (telemetry.sensors && telemetry.sensors.totalG) || 0,
-        emergencyContact: activeProfile.emergencyContact
-      });
-    }
-  } else {
-    // Normal telemetry received: hide modal if open
-    dismissEmergencyAlert();
+    triggerEmergencyAlert({
+      ...telemetry.alerts,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+      totalG: telemetry.sensors.totalG,
+      emergencyContact: activeProfile.emergencyContact
+    });
   }
 }
 
@@ -83,12 +98,10 @@ function unlockDashboard(rideId) {
   window.history.pushState({ path: newUrl }, '', newUrl);
 
   // Update Badge
-  const badge = document.getElementById('active-ride-badge');
-  if (badge) badge.textContent = currentRideId;
+  document.getElementById('active-ride-badge').textContent = currentRideId;
 
   // Hide Login Gate
-  const modal = document.getElementById('login-gate-modal');
-  if (modal) modal.classList.add('hidden');
+  document.getElementById('login-gate-modal').classList.add('hidden');
 
   // Initialize Firebase sync for this specific Rider ID
   syncManager.init(currentRideId);
@@ -99,10 +112,8 @@ function unlockDashboard(rideId) {
 function lockDashboard() {
   localStorage.removeItem('smart_helmet_ride_id');
   currentRideId = '';
-  const modal = document.getElementById('login-gate-modal');
-  if (modal) modal.classList.remove('hidden');
-  const input = document.getElementById('gate-ride-id-input');
-  if (input) input.value = '';
+  document.getElementById('login-gate-modal').classList.remove('hidden');
+  document.getElementById('gate-ride-id-input').value = '';
   showToast('Logged out of tracking session.');
 }
 
@@ -131,79 +142,46 @@ document.addEventListener('DOMContentLoaded', () => {
     unlockDashboard(storedRide);
   } else {
     // Show Login Gate
-    const modal = document.getElementById('login-gate-modal');
-    if (modal) modal.classList.remove('hidden');
+    document.getElementById('login-gate-modal').classList.remove('hidden');
   }
 
   // 5. Login Gate Form Submission
   const loginForm = document.getElementById('login-form');
   const gateInput = document.getElementById('gate-ride-id-input');
 
-  if (loginForm && gateInput) {
-    loginForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const val = gateInput.value.trim();
-      if (val) {
-        unlockDashboard(val);
+  loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const val = gateInput.value.trim().toUpperCase();
+    const errEl = document.getElementById('gate-error-msg');
+    
+    if (!isValidBikeNumber(val)) {
+      if (errEl) {
+        errEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Invalid Bike Number! Please enter a valid registration (e.g. MH-12-AB-1234).';
+        errEl.classList.remove('hidden');
       }
-    });
-  }
-
-  // Quick Demo Buttons on Login Gate
-  document.querySelectorAll('.quick-id-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const val = btn.getAttribute('data-id');
-      if (gateInput) gateInput.value = val;
-      unlockDashboard(val);
-    });
+      return;
+    }
+    
+    if (errEl) errEl.classList.add('hidden');
+    const resolvedId = registeredVehicles[val] || registeredVehicles[val.replace(/-/g, '')] || val;
+    unlockDashboard(resolvedId);
   });
 
-  // 5b. Dismiss Emergency Alert Modal Button
-  const btnDismissSos = document.getElementById('btn-dismiss-sos');
-  if (btnDismissSos) {
-    btnDismissSos.addEventListener('click', () => {
-      dismissEmergencyAlert();
-      const currentTs = (latestTelemetry && (latestTelemetry.timestamp || latestTelemetry.serverTimestamp)) || Date.now();
-      dismissedAlertTimestamp = currentTs;
-      sessionStorage.setItem('smart_helmet_dismissed_alert_ts', currentTs.toString());
-
-      // Update Firebase & server to clear active crash status
-      if (currentRideId && latestTelemetry) {
-        const clearedPayload = {
-          ...latestTelemetry,
-          alerts: {
-            ...(latestTelemetry.alerts || {}),
-            isCrashDetected: false,
-            isManualSosActive: false
-          }
-        };
-        syncManager.publishTelemetry(clearedPayload, getRiderProfile(currentRideId));
-      }
-      showToast('Emergency alert dismissed. Standby mode restored.');
-    });
-  }
-
   // 6. Switch Rider / Logout Button
-  const btnSwitch = document.getElementById('btn-switch-rider');
-  if (btnSwitch) {
-    btnSwitch.addEventListener('click', () => {
-      lockDashboard();
-    });
-  }
+  document.getElementById('btn-switch-rider').addEventListener('click', () => {
+    lockDashboard();
+  });
 
   // 7. Copy Shareable Live Link
-  const btnCopyLink = document.getElementById('btn-copy-link');
-  if (btnCopyLink) {
-    btnCopyLink.addEventListener('click', () => {
-      if (!currentRideId) return;
-      const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
-      navigator.clipboard.writeText(shareUrl).then(() => {
-        showToast('Live Tracking Link copied to clipboard!');
-      }).catch(() => {
-        prompt('Copy your Live Tracking link:', shareUrl);
-      });
+  document.getElementById('btn-copy-link').addEventListener('click', () => {
+    if (!currentRideId) return;
+    const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      showToast('Live Tracking Link copied to clipboard!');
+    }).catch(() => {
+      prompt('Copy your Live Tracking link:', shareUrl);
     });
-  }
+  });
 
   // 8. Map Action Buttons & Google Maps Basemap Switcher
   document.querySelectorAll('.basemap-btn').forEach(btn => {
@@ -232,22 +210,126 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  const btnCenterMap = document.getElementById('btn-center-map');
-  if (btnCenterMap) {
-    btnCenterMap.addEventListener('click', () => {
-      centerOnRider();
-      showToast('Map centered on rider');
+  document.getElementById('btn-center-map').addEventListener('click', () => {
+    centerOnRider();
+    showToast('Map centered on rider');
+  });
+
+  document.getElementById('btn-toggle-trail').addEventListener('click', () => {
+    const isVisible = toggleTrail();
+    showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
+  });
+
+  // 9. Mode Switcher (Viewer / Phone GPS / Demo Simulator)
+  const btnViewer = document.getElementById('mode-viewer');
+  const btnTransmitter = document.getElementById('mode-transmitter');
+  const btnSimulator = document.getElementById('mode-simulator');
+
+  function setMode(mode) {
+    currentMode = mode;
+    [btnViewer, btnTransmitter, btnSimulator].forEach(b => {
+      b.className = 'px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition-all flex items-center gap-1';
     });
+
+    if (mode === 'viewer') {
+      btnViewer.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
+      stopPhoneGpsBroadcaster();
+      stopRideSimulator();
+      showToast('Viewer Mode: Listening for live bike data...');
+    } else if (mode === 'transmitter') {
+      btnTransmitter.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
+      stopRideSimulator();
+      const started = startPhoneGpsBroadcaster((phoneLoc) => {
+        const payload = {
+          timestamp: phoneLoc.timestamp,
+          location: phoneLoc,
+          sensors: {
+            helmetWorn: true,
+            alcoholAdc: 410,
+            alcoholStatus: 'SAFE',
+            gForceX: 0.1,
+            gForceY: 0.98,
+            gForceZ: 0.05,
+            totalG: 1.01,
+            vibrationLevel: 'NORMAL',
+            ignitionRelay: true
+          },
+          alerts: { isCrashDetected: false, isManualSosActive: false }
+        };
+        syncManager.publishTelemetry(payload, getRiderProfile(currentRideId));
+      });
+      if (started) showToast('Broadcasting live phone GPS location...');
+    } else if (mode === 'simulator') {
+      btnSimulator.className = 'px-3 py-1 rounded-md text-xs font-medium bg-blue-600 text-white shadow-sm transition-all flex items-center gap-1';
+      stopPhoneGpsBroadcaster();
+      startRideSimulator((simPayload) => {
+        syncManager.publishTelemetry(simPayload, getRiderProfile(currentRideId));
+      });
+      showToast('Demo Simulator active: Driving virtual route...');
+    }
   }
 
-  const btnToggleTrail = document.getElementById('btn-toggle-trail');
-  if (btnToggleTrail) {
-    btnToggleTrail.addEventListener('click', () => {
-      const isVisible = toggleTrail();
-      showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
-    });
-  }
+  btnViewer.addEventListener('click', () => setMode('viewer'));
+  btnTransmitter.addEventListener('click', () => setMode('transmitter'));
+  btnSimulator.addEventListener('click', () => setMode('simulator'));
 
-    // 9. Pure Live IoT Hardware Listener
-  currentMode = 'viewer';
+  // 10. Test Crash & SOS Trigger Buttons
+  document.getElementById('btn-trigger-crash').addEventListener('click', () => {
+    const curLoc = latestTelemetry ? latestTelemetry.location : { latitude: 18.4529, longitude: 73.8553, speedKmph: 45, accuracyMeters: 3, heading: 45 };
+    const crashPayload = {
+      timestamp: Date.now(),
+      location: curLoc,
+      sensors: {
+        helmetWorn: true,
+        alcoholAdc: 420,
+        alcoholStatus: 'SAFE',
+        gForceX: 2.8,
+        gForceY: 3.4,
+        gForceZ: 1.2,
+        totalG: 4.56,
+        vibrationLevel: 'CRASH',
+        ignitionRelay: false
+      },
+      alerts: {
+        isCrashDetected: true,
+        isManualSosActive: false,
+        sosCountdownRemaining: 10
+      }
+    };
+    syncManager.publishTelemetry(crashPayload, getRiderProfile(currentRideId));
+  });
+
+  document.getElementById('btn-trigger-sos').addEventListener('click', () => {
+    const curLoc = latestTelemetry ? latestTelemetry.location : { latitude: 18.4529, longitude: 73.8553, speedKmph: 0, accuracyMeters: 3, heading: 0 };
+    const sosPayload = {
+      timestamp: Date.now(),
+      location: curLoc,
+      sensors: {
+        helmetWorn: true,
+        alcoholAdc: 420,
+        alcoholStatus: 'SAFE',
+        gForceX: 0.1,
+        gForceY: 0.98,
+        gForceZ: 0.05,
+        totalG: 1.02,
+        vibrationLevel: 'NORMAL',
+        ignitionRelay: false
+      },
+      alerts: {
+        isCrashDetected: false,
+        isManualSosActive: true,
+        sosCountdownRemaining: 10
+      }
+    };
+    syncManager.publishTelemetry(sosPayload, getRiderProfile(currentRideId));
+  });
+
+  document.getElementById('btn-dismiss-sos').addEventListener('click', () => {
+    dismissEmergencyAlert();
+    showToast('Emergency alert dismissed.');
+  });
+
+  // Start in Viewer mode to listen for live APK telemetry and crash coordinates
+  setMode('viewer');
 });
+

@@ -22,10 +22,98 @@ class SimulationApp {
     this.initEntities();
     this.initControls();
     this.initUI();
+    this.startTelemetryPolling();
 
     // Start Animation Loop
     this.animate = this.animate.bind(this);
     requestAnimationFrame(this.animate);
+  }
+
+  startTelemetryPolling() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const rideId = urlParams.get('rideId') || localStorage.getItem('smart_helmet_ride_id') || 'BIKE-101';
+    
+    const statusText = document.getElementById('iot-status-text');
+    const statusDot = document.getElementById('iot-status-dot');
+
+    setInterval(async () => {
+      try {
+        const res = await fetch(`/api/telemetry?rideId=${encodeURIComponent(rideId)}`);
+        if (res.ok) {
+          const json = await res.json();
+          if (json.hasData && json.telemetry) {
+            const t = json.telemetry;
+            const s = t.sensors || {};
+            const loc = t.location || {};
+            const alerts = t.alerts || {};
+
+            if (statusText) statusText.innerText = `IoT: LIVE (${rideId})`;
+            if (statusDot) {
+              statusDot.className = 'status-dot green';
+              statusDot.style.background = '#10b981';
+            }
+
+            // 1. Sync Helmet Wear State
+            const isWorn = (s.helmetWorn === true || s.helmetWorn === 1);
+            if (this.helmetWorn !== isWorn) {
+              this.helmetWorn = isWorn;
+              const btn = document.getElementById('btn-wear-helmet');
+              if (btn) {
+                btn.innerHTML = this.helmetWorn
+                  ? '<i class="fa-solid fa-check text-emerald-400"></i> Helmet Worn [OK]'
+                  : '<i class="fa-solid fa-helmet-safety"></i> Put On Helmet';
+              }
+            }
+
+            // 2. Sync Alcohol Reading
+            if (s.alcoholAdc !== undefined) {
+              this.alcoholADC = s.alcoholAdc;
+            }
+
+            // 3. Evaluate Safe Ignition
+            const isSober = (this.alcoholADC < 800);
+            const shouldBeUnlocked = this.helmetWorn && isSober && !alerts.isCrashDetected;
+            
+            if (this.isIgnitionUnlocked !== shouldBeUnlocked) {
+              this.isIgnitionUnlocked = shouldBeUnlocked;
+              this.physics.isIgnitionUnlocked = shouldBeUnlocked;
+              this.audioSynth.playRelayClick(shouldBeUnlocked);
+
+              if (shouldBeUnlocked && !this.isEngineRunning) {
+                this.toggleEngineStart(true);
+              } else if (!shouldBeUnlocked && this.isEngineRunning) {
+                this.toggleEngineStart(false);
+              }
+            }
+
+            // 4. Vector G-Force
+            if (s.totalG !== undefined) {
+              this.physics.gForce.total = s.totalG;
+            }
+
+            // 5. Crash Alert from Helmet
+            if (alerts.isCrashDetected && !this.physics.isCrashed) {
+              this.triggerCrash();
+            }
+
+            // 6. Live GPS Speed if moving
+            if (loc.speedKmph !== undefined && loc.speedKmph > 0.5 && this.isEngineRunning) {
+              this.physics.speed = loc.speedKmph;
+            }
+
+            this.updateHUD();
+          } else {
+            if (statusText) statusText.innerText = `IoT: STANDBY (${rideId})`;
+            if (statusDot) {
+              statusDot.className = 'status-dot';
+              statusDot.style.background = '#f59e0b';
+            }
+          }
+        }
+      } catch (e) {
+        // Standby
+      }
+    }, 350);
   }
 
   initScene() {
@@ -414,6 +502,14 @@ class SimulationApp {
 
     // 1. Update Physics
     this.physics.update(delta);
+
+    // Dynamic 3D Helmet Attachment vs Removal Animation
+    if (this.smartHelmet && this.currentCameraMode !== 'CAD') {
+      const targetY = this.helmetWorn ? 0.0 : 0.45;
+      const targetRotZ = this.helmetWorn ? 0.0 : 0.12;
+      this.smartHelmet.position.y = THREE.MathUtils.lerp(this.smartHelmet.position.y, targetY, delta * 6.0);
+      this.smartHelmet.rotation.z = THREE.MathUtils.lerp(this.smartHelmet.rotation.z, targetRotZ, delta * 6.0);
+    }
 
     // 2. Synchronize 3D Bike Mesh Transformations
     if (this.bike) {

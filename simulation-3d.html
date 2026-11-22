@@ -54,6 +54,10 @@
 
       <!-- Navigation & Audio Actions -->
       <div class="header-actions">
+        <div id="iot-stream-badge" class="nav-link-btn" style="border-color: rgba(56, 189, 248, 0.4); background: rgba(15, 23, 42, 0.9);">
+          <span class="status-dot" id="iot-status-dot" style="background:#06b6d4;"></span>
+          <span id="iot-status-text" class="font-mono text-cyan-400 font-bold" style="font-size: 0.72rem;">IoT: WAITING</span>
+        </div>
         <a href="hardware-poster.html" class="nav-link-btn" title="View Hardware Bill of Materials & Voltage/Ampere Poster">
           <i class="fa-solid fa-microchip text-emerald-400"></i>
           <span>Hardware Poster</span>
@@ -64,6 +68,10 @@
         </a>
         <button id="btn-toggle-audio" class="icon-btn" title="Toggle Synthesized Engine & Alarm Audio">
           <i id="audio-icon" class="fa-solid fa-volume-high text-cyan-400"></i>
+        </button>
+        <button onclick="lockSession()" class="nav-link-btn" style="border-color: rgba(244, 63, 94, 0.4); color: #fda4af;" title="Lock access to this vehicle">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span>Lock</span>
         </button>
       </div>
     </header>
@@ -201,6 +209,11 @@
   </script>
 
   <!-- Simulation Logic Modules -->
+  <script type="module">
+    import { initAuthGuard, lockSession } from './js/auth-guard.js';
+    window.lockSession = lockSession;
+    initAuthGuard('3D CAD Simulation');
+  </script>
   <script src="js/simulation-3d/audio-synthesizer.js"></script>
   <script src="js/simulation-3d/bike-physics.js"></script>
   <script src="js/simulation-3d/cad-models.js"></script>
