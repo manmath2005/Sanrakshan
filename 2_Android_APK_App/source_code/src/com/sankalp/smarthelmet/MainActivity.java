@@ -854,7 +854,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
                 String helmetStr = helmet
                     ? "🪖 HELMET: WORN (RIDER DETECTED) ✅"
                     : "⚠️ HELMET: NOT WORN (REMOVED) 🛑";
-                String alcoholStr = (alcohol >= 2200)
+                String alcoholStr = (alcohol >= 2000)
                     ? "🍺 ALCOHOL: DRUNK (" + alcohol + " ADC) 🛑"
                     : "🍺 ALCOHOL: SOBER (" + alcohol + " ADC) ✅";
                 String crashStr = crash
@@ -863,7 +863,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
                 if (tvTelemetry != null) {
                     tvTelemetry.setText(helmetStr + "\n" + alcoholStr + "\n" + crashStr);
-                    tvTelemetry.setTextColor((alcohol >= 2200 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
+                    tvTelemetry.setTextColor((alcohol >= 2000 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
                 }
             } catch (Exception ignored) {}
         }

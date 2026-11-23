@@ -153,7 +153,7 @@ export function updateTelemetry(telemetry, riderProfile) {
   if (alcoholAdc && alcoholBadge && alcoholProgress) {
     const val = isBleActive ? (sensors.alcoholAdc || 0) : 0;
     alcoholAdc.textContent = val;
-    const isSafe = (sensors.alcoholStatus === 'SAFE' || sensors.alcoholStatus === 'SAFE / SOBER' || val < 2200);
+    const isSafe = (sensors.alcoholStatus === 'SAFE' || sensors.alcoholStatus === 'SAFE / SOBER' || val < 2000);
     alcoholBadge.textContent = isSafe ? '0.00% SOBER' : 'ALCOHOL DETECTED!';
     alcoholBadge.className = isSafe ? 'text-[10px] font-bold text-emerald-400 uppercase' : 'text-[10px] font-bold text-red-400 uppercase animate-pulse';
     alcoholProgress.style.width = `${Math.min(100, (val / 4095) * 100)}%`;
@@ -191,7 +191,7 @@ export function updateTelemetry(telemetry, riderProfile) {
   const relayIcon = document.getElementById('relay-indicator-icon');
   if (relayStatus && relayBadge) {
     // Ignition relay must require BLE active + helmet worn + sober (< 2200 ADC) + no crash
-    const isSafe = isBleActive && isHelmetPhysicallyWorn && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 2200 : true) && (!alerts || !alerts.isCrashDetected);
+    const isSafe = isBleActive && isHelmetPhysicallyWorn && (sensors.alcoholAdc !== undefined ? sensors.alcoholAdc < 2000 : true) && (!alerts || !alerts.isCrashDetected);
     const isRelayOn = isSafe && (sensors.ignitionRelay === true || sensors.ignitionRelay === 1);
     relayStatus.textContent = isRelayOn ? 'STARTER ENGINE IGNITION ENABLED' : 'STARTER ENGINE IGNITION OFF';
     relayStatus.className = isRelayOn ? 'text-xs font-bold text-emerald-400' : 'text-xs font-bold text-red-400';

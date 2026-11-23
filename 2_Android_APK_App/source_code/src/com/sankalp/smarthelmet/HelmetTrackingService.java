@@ -210,7 +210,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             if (intent.hasExtra("SET_ALCOHOL_ADC")) {
                 currentAlcohol = intent.getIntExtra("SET_ALCOHOL_ADC", 380);
-                boolean isLocked = currentAlcohol >= 2200;
+                boolean isLocked = currentAlcohol >= 2000;
                 Log.i(TAG, "🍺 Breath alcohol updated to " + currentAlcohol + " ADC (Ignition " + (isLocked ? "LOCKED" : "UNLOCKED") + ")");
                 dispatchTelemetryToServer(false);
             }
@@ -922,13 +922,13 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             JSONObject sens = new JSONObject();
             // Ignition relay is strictly OFF unless motor running is explicitly confirmed:
-            // Helmet must be worn, alcohol sober (< 2200 ADC), no crash, and BLE connected!
-            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 2200) && !isCrash;
+            // Helmet must be worn, alcohol sober (< 2000 ADC), no crash, and BLE connected!
+            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 2000) && !isCrash;
             sens.put("bleConnected", isBleConnected);
             sens.put("helmetWorn", isBleConnected && isHelmetWorn);
             sens.put("alcoholAdc", isBleConnected ? currentAlcohol : 0);
             sens.put("alcoholStatus", isBleConnected 
-                ? (currentAlcohol >= 2200 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
+                ? (currentAlcohol >= 2000 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
                 : "AWAITING HELMET BLE CONNECTION");
             sens.put("totalG", isBleConnected ? currentGForce : 1.0);
             sens.put("gForceX", isBleConnected ? 0.1 : 0.0);

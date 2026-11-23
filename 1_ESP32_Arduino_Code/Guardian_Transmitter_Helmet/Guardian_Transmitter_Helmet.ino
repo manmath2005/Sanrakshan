@@ -42,12 +42,12 @@
 #define IR_WORN_LEVEL     LOW
 
 // 2. MQ-3 Alcohol Sensor Polarity:
-// Set to true because in clean air raw ADC is ~4095 (SOBER), and drops on alcohol exposure.
-// When true: clean air = 0 ADC [SOBER], alcohol exposure = rises >1000 ADC [DRUNK].
-#define INVERT_ALCOHOL_POLARITY true
+// Set to false for standard MQ-3 AO: clean air = LOW voltage (~200-400 ADC, SOBER).
+// Alcohol vapor exposure = HIGH voltage (rises >2000 ADC, DRUNK).
+#define INVERT_ALCOHOL_POLARITY false
 
 // SAFETY THRESHOLDS
-const int ALCOHOL_THRESHOLD_ADC          = 2200;  // >= 2200 ADC = High Intoxication (ignores small/faint whiffs)
+const int ALCOHOL_THRESHOLD_ADC          = 2000;  // >= 2000 ADC = Heavy Intoxication (clean air ~200-400 ADC stays SOBER & silent)
 const float CRASH_THRESHOLD_G            = 8.00;  // >= 8.00G = High Impact Crash Trigger (only detects heavy 8G+ crashes)
 const unsigned long CRASH_BUZZER_MAX_MS  = 30000; // Buzzer beeping automatically stops after 30 seconds
 const unsigned long CANCEL_WINDOW_MS     = 3000;  // 3-second grace window to cancel bumps

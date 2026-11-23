@@ -100,9 +100,10 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
   }
 }
 
-function unlockDashboard(rideId) {
-  currentRideId = rideId.trim().toUpperCase();
+export function unlockDashboard(rideId) {
+  currentRideId = (rideId || 'BIKE-101').trim().toUpperCase();
   localStorage.setItem('smart_helmet_ride_id', currentRideId);
+  document.documentElement.classList.add('user-authenticated');
 
   // Update URL Query String without reloading
   try {
@@ -128,8 +129,9 @@ function unlockDashboard(rideId) {
   showToast(`Unlocked live tracking for ${currentRideId}`);
 }
 
-function lockDashboard() {
+export function lockDashboard() {
   localStorage.removeItem('smart_helmet_ride_id');
+  document.documentElement.classList.remove('user-authenticated');
   currentRideId = '';
   const gateModal = document.getElementById('login-gate-modal');
   if (gateModal) {
@@ -142,7 +144,22 @@ function lockDashboard() {
   showToast('Logged out of tracking session.');
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// Global window helpers for instant inline button handlers
+window.handleQuickUnlock = function(bikeNum) {
+  const b = (bikeNum || 'MH-12-AB-1234').trim().toUpperCase();
+  const cleanNoHyphens = b.replace(/[^A-Z0-9]/g, '');
+  const resolvedId = registeredVehicles[b] || registeredVehicles[cleanNoHyphens] || b;
+  unlockDashboard(resolvedId);
+};
+
+window.handleLoginSubmit = function(e) {
+  if (e) e.preventDefault();
+  const input = document.getElementById('gate-ride-id-input');
+  const val = input ? input.value.trim().toUpperCase() : 'MH-12-AB-1234';
+  window.handleQuickUnlock(val);
+};
+
+function initDashboardApp() {
   // 1. Initialize Leaflet Map (Centered on Pune area)
   initMap('map', 18.4529, 73.8553);
 
@@ -325,5 +342,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Start in Viewer mode to listen for live APK telemetry and crash coordinates
   setMode('viewer');
-});
+}
+
+// Ensure startup runs whether DOMContentLoaded is pending or has already fired
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initDashboardApp);
+} else {
+  initDashboardApp();
+}
 
