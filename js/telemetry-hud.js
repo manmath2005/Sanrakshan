@@ -166,7 +166,6 @@ export function updateTelemetry(telemetry, riderProfile) {
     alcoholProgress.style.width = `${Math.min(100, (val / 4095) * 100)}%`;
     alcoholProgress.className = isSafe ? 'bg-emerald-500 h-1.5 rounded-full transition-all duration-300' : 'bg-red-500 h-1.5 rounded-full transition-all duration-300';
   }
-  }
 
   // 7. MPU G-Force
   const mpuTotal = document.getElementById('mpu-total-g');
@@ -229,8 +228,8 @@ export function updateTelemetry(telemetry, riderProfile) {
         type: alerts.isCrashDetected ? 'CRASH_IMPACT' : 'MANUAL_SOS',
         location: loc && loc.latitude ? { latitude: loc.latitude, longitude: loc.longitude } : { latitude: 18.4529, longitude: 73.8553 },
         gForce: (sensors && sensors.totalG) || 8.0,
-        vehicleNumber: data.vehicleNumber || 'MH-12-AB-1234',
-        riderName: data.riderName || 'Rider'
+        vehicleNumber: (telemetry && telemetry.vehicleNumber) || (riderProfile && riderProfile.vehicleNumber) || 'MH-12-AB-1234',
+        riderName: (telemetry && telemetry.riderName) || (riderProfile && riderProfile.riderName) || 'Rider'
       });
       if (localHistory.length > 10) localHistory.pop();
       try {

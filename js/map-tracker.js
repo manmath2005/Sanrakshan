@@ -84,14 +84,16 @@ export function initMap(containerId = 'map', initialLat = 18.4529, initialLng = 
   activeEngine = 'leaflet';
   console.log('[MapTracker] Initialized with Leaflet Satellite HD Engine');
 
-  // Force Leaflet to compute container dimensions cleanly
-  setTimeout(() => {
-    if (lMapInstance) lMapInstance.invalidateSize();
-  }, 250);
+  // Force Leaflet to compute container dimensions cleanly across paint cycles
+  [100, 300, 800].forEach(delay => {
+    setTimeout(() => {
+      if (lMapInstance) lMapInstance.invalidateSize(true);
+    }, delay);
+  });
 
   // Recalculate on window resize
   window.addEventListener('resize', () => {
-    if (lMapInstance) lMapInstance.invalidateSize();
+    if (lMapInstance) lMapInstance.invalidateSize(true);
   });
 
   return lMapInstance;

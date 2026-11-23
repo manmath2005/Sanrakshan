@@ -240,22 +240,28 @@ function initDashboardApp() {
   });
 
   // 6. Switch Rider / Logout Button
-  document.getElementById('btn-switch-rider').addEventListener('click', () => {
-    lockDashboard();
-  });
+  const btnSwitchRider = document.getElementById('btn-switch-rider');
+  if (btnSwitchRider) {
+    btnSwitchRider.addEventListener('click', () => {
+      lockDashboard();
+    });
+  }
 
   // 7. Copy Shareable Live Link
-  document.getElementById('btn-copy-link').addEventListener('click', () => {
-    if (!currentRideId) return;
-    const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      showToast('Live Tracking Link copied to clipboard!');
-    }).catch(() => {
-      prompt('Copy your Live Tracking link:', shareUrl);
+  const btnCopyLink = document.getElementById('btn-copy-link');
+  if (btnCopyLink) {
+    btnCopyLink.addEventListener('click', () => {
+      if (!currentRideId) return;
+      const shareUrl = `${window.location.origin}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast('Live Tracking Link copied to clipboard!');
+      }).catch(() => {
+        prompt('Copy your Live Tracking link:', shareUrl);
+      });
     });
-  });
+  }
 
-  // 8. Map Action Buttons & Google Maps Basemap Switcher
+  // 8. Map Action Buttons & Basemap Switcher
   document.querySelectorAll('.basemap-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const style = btn.getAttribute('data-basemap');
@@ -267,7 +273,7 @@ function initDashboardApp() {
       });
       btn.className = 'basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition-all flex items-center gap-1.5 shadow-sm';
 
-      showToast(`Switched map to Google Maps ${style.toUpperCase()}`);
+      showToast(`Switched map basemap to ${style.toUpperCase()}`);
     });
   });
 
@@ -282,15 +288,21 @@ function initDashboardApp() {
     });
   }
 
-  document.getElementById('btn-center-map').addEventListener('click', () => {
-    centerOnRider();
-    showToast('Map centered on rider');
-  });
+  const btnCenter = document.getElementById('btn-center-map');
+  if (btnCenter) {
+    btnCenter.addEventListener('click', () => {
+      centerOnRider();
+      showToast('Map centered on rider');
+    });
+  }
 
-  document.getElementById('btn-toggle-trail').addEventListener('click', () => {
-    const isVisible = toggleTrail();
-    showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
-  });
+  const btnTrail = document.getElementById('btn-toggle-trail');
+  if (btnTrail) {
+    btnTrail.addEventListener('click', () => {
+      const isVisible = toggleTrail();
+      showToast(isVisible ? 'Path trail enabled' : 'Path trail hidden');
+    });
+  }
 
   // 9. Mode Switcher (Viewer / Phone GPS)
   const btnViewer = document.getElementById('mode-viewer');
