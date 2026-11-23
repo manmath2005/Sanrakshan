@@ -24,10 +24,12 @@ let lMarker = null;
 let lAccuracyCircle = null;
 let lPathPolyline = null;
 let lTileLayer = null;
+let lTrafficLayer = null;
+let isLTrafficVisible = false;
 
 let pathCoordinates = [];
 let isAutoFollow = true;
-let currentBasemap = 'satellite';
+let currentBasemap = 'roadmap';
 let lastLat = 18.4529;
 let lastLng = 73.8553;
 
@@ -49,23 +51,39 @@ const GOOGLE_DARK_STYLE = [
   { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#38bdf8" }] }
 ];
 
-// Leaflet Tile Layers Providers (No Watermark, Fast CDN)
+// Leaflet Google Maps High-Definition Providers (Full Google Shops, Roads, Landmarks & POIs)
 const LEAFLET_PROVIDERS = {
+  roadmap: {
+    url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    options: {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Maps'
+    }
+  },
   satellite: {
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    options: { maxZoom: 19, attribution: 'Esri World Satellite Imagery HD' }
+    url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    options: {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Maps Satellite & Roads'
+    }
   },
   dark: {
     url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    options: { maxZoom: 19, subdomains: 'abcd', attribution: 'CARTO Dark Matter' }
-  },
-  roadmap: {
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 19, attribution: 'OpenStreetMap' }
+    options: {
+      maxZoom: 19,
+      subdomains: 'abcd',
+      attribution: 'CARTO Dark Matter'
+    }
   },
   terrain: {
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    options: { maxZoom: 17, attribution: 'OpenTopoMap' }
+    url: 'https://{s}.google.com/vt/lyrs=p&x={x}&y={y}&z={z}',
+    options: {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Maps Terrain'
+    }
   }
 };
 
@@ -230,8 +248,8 @@ function initLeafletEngine(container, lat, lng) {
     zoomControl: true
   });
 
-  // Default Esri World Satellite
-  const p = LEAFLET_PROVIDERS.satellite;
+  // Default Google Maps Roadmap with all shops, landmarks and street labels
+  const p = LEAFLET_PROVIDERS.roadmap;
   lTileLayer = L.tileLayer(p.url, p.options).addTo(lMapInstance);
 
   // Custom Leaflet Animated Marker
@@ -397,6 +415,22 @@ export function switchBasemap(style = 'satellite') {
  * Toggle Traffic Layer
  */
 export function toggleTraffic() {
+  if (activeEngine === 'leaflet' && lMapInstance) {
+    isLTrafficVisible = !isLTrafficVisible;
+    if (isLTrafficVisible) {
+      if (!lTrafficLayer) {
+        lTrafficLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=h,traffic&x={x}&y={y}&z={z}', {
+          maxZoom: 20,
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          opacity: 0.85
+        });
+      }
+      lTrafficLayer.addTo(lMapInstance);
+    } else if (lTrafficLayer && lMapInstance.hasLayer(lTrafficLayer)) {
+      lMapInstance.removeLayer(lTrafficLayer);
+    }
+    return isLTrafficVisible;
+  }
   if (activeEngine === 'google' && gTrafficLayer && gMapInstance) {
     isTrafficVisible = !isTrafficVisible;
     gTrafficLayer.setMap(isTrafficVisible ? gMapInstance : null);

@@ -241,14 +241,11 @@
       <div class="absolute bottom-4 right-4 z-20 flex flex-col items-end gap-2">
         <!-- Clean Google Maps / Basemap Selector -->
         <div class="glass-panel p-1 rounded-xl flex items-center gap-1 border border-slate-700 shadow-2xl bg-slate-900/90 backdrop-blur-md">
-          <button id="btn-basemap-satellite" data-basemap="satellite" title="Google Hybrid Satellite" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition-all flex items-center gap-1.5 shadow-sm">
+          <button id="btn-basemap-roadmap" data-basemap="roadmap" title="Google Standard Roadmap with Shops & POIs" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white transition-all flex items-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-store text-xs text-amber-400"></i> <span>🏪 Shops & Roads</span>
+          </button>
+          <button id="btn-basemap-satellite" data-basemap="satellite" title="Google Hybrid Satellite + Shops" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-all flex items-center gap-1.5">
             <i class="fa-solid fa-earth-asia text-xs text-emerald-400"></i> <span>🛰️ Satellite</span>
-          </button>
-          <button id="btn-basemap-dark" data-basemap="dark" title="Google Dark Roadmap" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-all flex items-center gap-1.5">
-            <i class="fa-solid fa-moon text-xs text-cyan-400"></i> <span>Dark</span>
-          </button>
-          <button id="btn-basemap-roadmap" data-basemap="roadmap" title="Google Standard Roadmap" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-all flex items-center gap-1.5">
-            <i class="fa-solid fa-map text-xs text-amber-400"></i> <span>Road</span>
           </button>
           <button id="btn-basemap-terrain" data-basemap="terrain" title="Google Topographic Terrain" class="basemap-btn px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white transition-all flex items-center gap-1.5">
             <i class="fa-solid fa-mountain text-xs text-yellow-400"></i> <span>Terrain</span>
