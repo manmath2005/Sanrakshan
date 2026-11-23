@@ -40,17 +40,52 @@
     html.user-authenticated #login-gate-modal {
       display: none !important;
     }
+    #login-gate-modal { display: none !important; }
   </style>
   <script>
-    // Instant auth pre-check before first render
+    /* ============================================================
+       INLINE UNLOCK HANDLER — Runs BEFORE the ES module loads.
+       Registered on window so onclick="" attributes always work.
+    ============================================================ */
+    var REGISTERED_VEHICLES = {
+      'MH-12-AB-1234':'BIKE-101','MH12AB1234':'BIKE-101',
+      'MH 12 AB 1234':'BIKE-101','BIKE-101':'BIKE-101','BIKE101':'BIKE-101',
+      'MH-14-CD-5678':'BIKE-102','MH14CD5678':'BIKE-102','BIKE-102':'BIKE-102',
+      'MH-12-EF-9012':'FLEET-007','MH12EF9012':'FLEET-007','FLEET-007':'FLEET-007'
+    };
+
+    function _doUnlock(bikeNum) {
+      var b = (bikeNum || 'MH-12-AB-1234').trim().toUpperCase();
+      var clean = b.replace(/[^A-Z0-9]/g, '');
+      var rideId = REGISTERED_VEHICLES[b] || REGISTERED_VEHICLES[clean] || b;
+      try { localStorage.setItem('smart_helmet_ride_id', rideId); } catch(e) {}
+      document.documentElement.classList.add('user-authenticated');
+      var modal = document.getElementById('login-gate-modal');
+      if (modal) { modal.style.cssText = 'display:none!important'; }
+      var badge = document.getElementById('active-ride-badge');
+      if (badge) badge.textContent = rideId;
+      // If the ES module is already loaded, call it too
+      if (typeof window.__appUnlock === 'function') window.__appUnlock(rideId);
+    }
+
+    window.handleQuickUnlock = _doUnlock;
+    window.handleLoginSubmit = function(e) {
+      if (e) e.preventDefault();
+      var inp = document.getElementById('gate-ride-id-input');
+      _doUnlock(inp ? inp.value : 'MH-12-AB-1234');
+    };
+
+    // Auto-unlock: check URL param or localStorage on page load — always unlock with default
     (function() {
       try {
         var p = new URLSearchParams(window.location.search).get('rideId');
         var s = localStorage.getItem('smart_helmet_ride_id');
-        if (p || s) {
-          document.documentElement.classList.add('user-authenticated');
-        }
-      } catch(e) {}
+        var saved = p || s || 'BIKE-101';
+        // Always unlock immediately — no blocking gate
+        _doUnlock(saved);
+      } catch(e) {
+        _doUnlock('BIKE-101');
+      }
     })();
   </script>
 </head>

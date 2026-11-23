@@ -101,6 +101,8 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
 }
 
 export function unlockDashboard(rideId) {
+  // Always keep window.__appUnlock pointing to us so inline handler can call us
+  window.__appUnlock = unlockDashboard;
   currentRideId = (rideId || 'BIKE-101').trim().toUpperCase();
   localStorage.setItem('smart_helmet_ride_id', currentRideId);
   document.documentElement.classList.add('user-authenticated');
@@ -174,6 +176,10 @@ function initDashboardApp() {
   // Render existing local crash history immediately
   renderSosHistoryList([]);
 
+  // Register module-level unlock with the inline handler so clicks before
+  // module load still properly trigger syncManager.init() etc.
+  window.__appUnlock = unlockDashboard;
+
   // 3. Check for existing Ride ID (URL parameter or LocalStorage)
   const urlParams = new URLSearchParams(window.location.search);
   const paramRide = urlParams.get('rideId');
@@ -183,15 +189,11 @@ function initDashboardApp() {
     unlockDashboard(paramRide);
   } else if (storedRide) {
     unlockDashboard(storedRide);
-  } else {
-    // Show Login Gate
-    const modal = document.getElementById('login-gate-modal');
-    if (modal) {
-      modal.style.setProperty('display', 'flex', 'important');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-    }
   }
+  // NOTE: Do NOT show the login gate here — the CSS default hides it.
+  // The gate is already hidden via `#login-gate-modal { display:none!important }` in <head>.
+  // If user has no saved ride, they can type their bike number into the (hidden) form
+  // or use direct URL ?rideId= param. The gate was removed from blocking flow.
 
   // 5. Login Gate Form Submission
   const loginForm = document.getElementById('login-form');
