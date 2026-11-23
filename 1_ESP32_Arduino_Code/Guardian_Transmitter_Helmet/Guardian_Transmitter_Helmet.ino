@@ -42,12 +42,13 @@
 #define IR_WORN_LEVEL     LOW
 
 // 2. MQ-3 Alcohol Sensor Polarity:
-// Maps clean air (high raw ADC) to 0 (SOBER), and alcohol exposure (low raw ADC) to high ADC (>800 = DRUNK).
+// Set to true because in clean air raw ADC is ~4095 (SOBER), and drops on alcohol exposure.
+// When true: clean air = 0 ADC [SOBER], alcohol exposure = rises >1000 ADC [DRUNK].
 #define INVERT_ALCOHOL_POLARITY true
 
 // SAFETY THRESHOLDS
-const int ALCOHOL_THRESHOLD_ADC          = 800;   // >= 800 ADC = Intoxicated
-const float CRASH_THRESHOLD_G            = 4.00;  // >= 4.0G = Crash Impact Trigger
+const int ALCOHOL_THRESHOLD_ADC          = 1000;  // >= 1000 ADC = Intoxicated (clean air ~200-400 ADC)
+const float CRASH_THRESHOLD_G            = 3.00;  // >= 3.00G = Crash Impact Trigger (responsive to realistic impact)
 const unsigned long CRASH_BUZZER_MAX_MS  = 30000; // Buzzer beeping automatically stops after 30 seconds
 const unsigned long CANCEL_WINDOW_MS     = 3000;  // 3-second grace window to cancel bumps
 
@@ -155,24 +156,46 @@ void initBLE() {
 }
 
 // -------------------------------------------------------------
-// I2C BUS SCANNER & MPU INITIALIZATION (Dual Mode)
+// I2C BUS RECOVERY & MPU INITIALIZATION (Dual Mode + Auto Bus Reset)
 // -------------------------------------------------------------
-void scanI2CBus() {
+void recoverI2CBus() {
+  Wire.end();
+  pinMode(21, INPUT_PULLUP); // SDA
+  pinMode(22, OUTPUT);       // SCL
+  for (int i = 0; i < 9; i++) {
+    digitalWrite(22, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(22, LOW);
+    delayMicroseconds(10);
+  }
+  digitalWrite(22, HIGH);
+  delayMicroseconds(10);
+  Wire.begin(21, 22, 100000);
+  Wire.setTimeOut(100);
+}
+
+byte scanI2CBus() {
   Serial.println("🔍 [I2C Scanner] Scanning bus on SDA:GPIO 21, SCL:GPIO 22...");
   byte found = 0;
+  byte firstAddr = 0;
   for (byte addr = 1; addr < 127; addr++) {
     Wire.beginTransmission(addr);
     if (Wire.endTransmission() == 0) {
       Serial.printf("   📍 [I2C Device Found] Address: 0x%02X\n", addr);
+      if (firstAddr == 0) firstAddr = addr;
       found++;
     }
   }
   if (found == 0) {
     Serial.println("   ❌ [I2C Device NOT Found] No devices responded!");
-    Serial.println("      -> Check wiring: MPU VCC to VIN (5V) or 3.3V, GND to GND, SCL to GPIO 22, SDA to GPIO 21, AD0 to GND.");
+    Serial.println("      -> Check wiring: MPU VCC to VIN (5V) or 3.3V, GND to GND.");
+    Serial.println("      -> CRITICAL: SCL must go to GPIO 22, SDA to GPIO 21 (DO NOT SWAP).");
+    Serial.println("      -> Ensure AD0 is grounded to GND (address 0x68).");
+    Serial.println("      -> Check if header pins are properly soldered to MPU board!");
   } else {
     Serial.printf("   ✅ [I2C Scan Complete] Found %d device(s).\n", found);
   }
+  return firstAddr;
 }
 
 bool rawMpuWake(uint8_t addr) {
@@ -197,20 +220,28 @@ bool rawMpuWake(uint8_t addr) {
   return true;
 }
 
-bool initMpuSensor() {
-  // 1. Try Adafruit MPU6050 driver (at 0x68, then 0x69)
-  if (mpu.begin(0x68) || mpu.begin(0x69)) {
-    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
-    mpuAvailable = true;
-    rawMpuMode = false;
-    Serial.println("✅ Adafruit MPU-6050 6-Axis IMU Initialized (Range: ±8G).");
-    return true;
+bool initMpuSensor(byte hintAddr = 0) {
+  uint8_t targetAddrs[3] = {0x68, 0x69, 0x68};
+  if (hintAddr != 0) {
+    targetAddrs[0] = hintAddr;
   }
 
-  // 2. Fallback: Direct Wire register wake-up (works with all MPU-6050/6500 clones even if WHO_AM_I is 0x70/0x72/0x98)
-  if (rawMpuWake(0x68) || rawMpuWake(0x69)) {
-    return true;
+  for (int i = 0; i < 2; i++) {
+    uint8_t addr = targetAddrs[i];
+    // 1. Try Adafruit MPU6050 driver
+    if (mpu.begin(addr)) {
+      mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+      mpu.setFilterBandwidth(MPU6050_BAND_94_HZ);
+      mpuAvailable = true;
+      rawMpuMode = false;
+      Serial.printf("✅ Adafruit MPU-6050 Initialized at 0x%02X (Range: ±8G, 94Hz Bandwidth).\n", addr);
+      return true;
+    }
+
+    // 2. Fallback: Direct Wire register wake-up (works with all clones even if WHO_AM_I differs)
+    if (rawMpuWake(addr)) {
+      return true;
+    }
   }
 
   mpuAvailable = false;
@@ -235,11 +266,10 @@ void setup() {
   // 2. Analog ADC Setup (11dB = Full 0 - 3.3V range for MQ-3)
   analogSetPinAttenuation(MQ3_ALCOHOL_PIN, ADC_11db);
 
-  // 3. I2C Bus & MPU-6050 Initialization
-  Wire.begin(21, 22);
-  Wire.setTimeOut(100);
-  scanI2CBus();
-  initMpuSensor();
+  // 3. I2C Bus & MPU-6050 Initialization (with bus unstick & auto-detect)
+  recoverI2CBus();
+  byte detectedAddr = scanI2CBus();
+  initMpuSensor(detectedAddr);
 
   // 4. Wi-Fi Station Mode for ESP-NOW (Disable power save for BLE coexistence)
   WiFi.mode(WIFI_STA);
@@ -302,8 +332,9 @@ void loop() {
   static unsigned long lastMpuRetry = 0;
   if (!mpuAvailable && (millis() - lastMpuRetry >= 3000)) {
     lastMpuRetry = millis();
-    scanI2CBus();
-    initMpuSensor();
+    recoverI2CBus();
+    byte detected = scanI2CBus();
+    initMpuSensor(detected);
   }
 
   float totalG = 1.0;

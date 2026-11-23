@@ -96,7 +96,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
     private boolean isAuthenticated = false;
 
     private float[] sensitivityLevels = {2.5f, 3.0f, 3.5f, 4.0f, 5.0f, 6.0f};
-    private int sensitivityIndex = 3; // default 4.0G
+    private int sensitivityIndex = 1; // default 3.0G
     private boolean isDemoDrunk = false;
 
     // Hardcoded Vercel server URL — APK always connects to this website
@@ -832,7 +832,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
                 String helmetStr = helmet
                     ? "🪖 HELMET: WORN (RIDER DETECTED) ✅"
                     : "⚠️ HELMET: NOT WORN (REMOVED) 🛑";
-                String alcoholStr = (alcohol >= 800)
+                String alcoholStr = (alcohol >= 1000)
                     ? "🍺 ALCOHOL: DRUNK (" + alcohol + " ADC) 🛑"
                     : "🍺 ALCOHOL: SOBER (" + alcohol + " ADC) ✅";
                 String crashStr = crash
@@ -841,7 +841,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
                 if (tvTelemetry != null) {
                     tvTelemetry.setText(helmetStr + "\n" + alcoholStr + "\n" + crashStr);
-                    tvTelemetry.setTextColor((alcohol >= 800 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
+                    tvTelemetry.setTextColor((alcohol >= 1000 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
                 }
             } catch (Exception ignored) {}
         }

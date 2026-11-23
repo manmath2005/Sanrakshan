@@ -88,7 +88,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     }
 
     private String serverUrl = "https://sanrakshan-eight.vercel.app";
-    private float sensitivityThresholdG = 4.0f;
+    private float sensitivityThresholdG = 3.0f;
     private boolean isCrashTriggered = false;
     private long lastCrashSosTimestamp = 0;
     private long lastTelemetryPostTime = 0;
@@ -98,7 +98,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         super.onCreate();
         SharedPreferences prefs = getSharedPreferences("SmartHelmetPrefs", Context.MODE_PRIVATE);
         serverUrl = prefs.getString("SERVER_URL", "https://sanrakshan-eight.vercel.app");
-        sensitivityThresholdG = prefs.getFloat("SENSITIVITY_G", 4.0f);
+        sensitivityThresholdG = prefs.getFloat("SENSITIVITY_G", 3.0f);
 
         // Load persisted real coordinates if available
         try {
@@ -196,7 +196,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             if (intent.hasExtra("SET_ALCOHOL_ADC")) {
                 currentAlcohol = intent.getIntExtra("SET_ALCOHOL_ADC", 380);
-                boolean isLocked = currentAlcohol >= 800;
+                boolean isLocked = currentAlcohol >= 1000;
                 Log.i(TAG, "🍺 Breath alcohol updated to " + currentAlcohol + " ADC (Ignition " + (isLocked ? "LOCKED" : "UNLOCKED") + ")");
                 dispatchTelemetryToServer(false);
             }
@@ -851,12 +851,12 @@ public class HelmetTrackingService extends Service implements LocationListener, 
             JSONObject sens = new JSONObject();
             // Ignition relay is strictly OFF unless motor running is explicitly confirmed:
             // Helmet must be worn, alcohol sober, no crash, and BLE connected!
-            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 800) && !isCrash;
+            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 1000) && !isCrash;
             sens.put("bleConnected", isBleConnected);
             sens.put("helmetWorn", isBleConnected && isHelmetWorn);
             sens.put("alcoholAdc", isBleConnected ? currentAlcohol : 0);
             sens.put("alcoholStatus", isBleConnected 
-                ? (currentAlcohol >= 800 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
+                ? (currentAlcohol >= 1000 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
                 : "AWAITING HELMET BLE CONNECTION");
             sens.put("totalG", isBleConnected ? currentGForce : 1.0);
             sens.put("gForceX", isBleConnected ? 0.1 : 0.0);
