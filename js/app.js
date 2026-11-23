@@ -131,6 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 2. Subscribe to Firebase Sync
   syncManager.onTelemetryUpdate(handleIncomingTelemetry);
   syncManager.onSosHistoryUpdate(renderSosHistoryList);
+  // Render existing local crash history immediately
+  renderSosHistoryList([]);
 
   // 3. Check for existing Ride ID (URL parameter or LocalStorage)
   const urlParams = new URLSearchParams(window.location.search);

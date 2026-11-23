@@ -47,6 +47,28 @@ export default async function handler(req, res) {
         telemetryCache[vClean.replace(/[^A-Z0-9]/g, '')] = telemetryCache[rideId];
       }
 
+      // Automatically register any crash event into SOS History
+      if (data.alerts && (data.alerts.isCrashDetected || data.alerts.isManualSosActive)) {
+        global.__GUARDIAN_SOS_HISTORY__ = global.__GUARDIAN_SOS_HISTORY__ || [];
+        const now = Date.now();
+        const exists = global.__GUARDIAN_SOS_HISTORY__.some(e => Math.abs(e.timestamp - now) < 20000);
+        if (!exists) {
+          global.__GUARDIAN_SOS_HISTORY__.unshift({
+            id: `CRASH-${now}`,
+            timestamp: now,
+            type: data.alerts.isCrashDetected ? 'CRASH_IMPACT' : 'MANUAL_SOS',
+            location: data.location || { latitude: 18.4529, longitude: 73.8553 },
+            gForce: (data.sensors && data.sensors.totalG) || 8.0,
+            vehicleNumber: data.vehicleNumber || rideId,
+            riderName: data.riderName || 'Rider',
+            status: 'DISPATCHED_SMS_AND_CALLS'
+          });
+          if (global.__GUARDIAN_SOS_HISTORY__.length > 25) {
+            global.__GUARDIAN_SOS_HISTORY__.pop();
+          }
+        }
+      }
+
       return res.status(200).json({ success: true, rideId });
     } catch (e) {
       return res.status(400).json({ success: false, error: e.message });

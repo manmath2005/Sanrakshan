@@ -47,8 +47,8 @@
 #define INVERT_ALCOHOL_POLARITY true
 
 // SAFETY THRESHOLDS
-const int ALCOHOL_THRESHOLD_ADC          = 1000;  // >= 1000 ADC = Intoxicated (clean air ~200-400 ADC)
-const float CRASH_THRESHOLD_G            = 3.00;  // >= 3.00G = Crash Impact Trigger (responsive to realistic impact)
+const int ALCOHOL_THRESHOLD_ADC          = 2200;  // >= 2200 ADC = High Intoxication (ignores small/faint whiffs)
+const float CRASH_THRESHOLD_G            = 8.00;  // >= 8.00G = High Impact Crash Trigger (only detects heavy 8G+ crashes)
 const unsigned long CRASH_BUZZER_MAX_MS  = 30000; // Buzzer beeping automatically stops after 30 seconds
 const unsigned long CANCEL_WINDOW_MS     = 3000;  // 3-second grace window to cancel bumps
 
@@ -207,16 +207,16 @@ bool rawMpuWake(uint8_t addr) {
 
   delay(20);
 
-  // Set Accelerometer Range to +/- 8G (register 0x1C = 0x10)
+  // Set Accelerometer Range to +/- 16G (register 0x1C = 0x18 for up to 16G impacts)
   Wire.beginTransmission(addr);
   Wire.write(0x1C);
-  Wire.write(0x10);
+  Wire.write(0x18);
   if (Wire.endTransmission() != 0) return false;
 
   activeMpuAddr = addr;
   rawMpuMode = true;
   mpuAvailable = true;
-  Serial.printf("✅ Direct Wire I2C MPU Initialized at 0x%02X (Range: ±8G).\n", addr);
+  Serial.printf("✅ Direct Wire I2C MPU Initialized at 0x%02X (Range: ±16G for 8G+ crash detection).\n", addr);
   return true;
 }
 
@@ -230,11 +230,11 @@ bool initMpuSensor(byte hintAddr = 0) {
     uint8_t addr = targetAddrs[i];
     // 1. Try Adafruit MPU6050 driver
     if (mpu.begin(addr)) {
-      mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+      mpu.setAccelerometerRange(MPU6050_RANGE_16_G);
       mpu.setFilterBandwidth(MPU6050_BAND_94_HZ);
       mpuAvailable = true;
       rawMpuMode = false;
-      Serial.printf("✅ Adafruit MPU-6050 Initialized at 0x%02X (Range: ±8G, 94Hz Bandwidth).\n", addr);
+      Serial.printf("✅ Adafruit MPU-6050 Initialized at 0x%02X (Range: ±16G, 94Hz Bandwidth).\n", addr);
       return true;
     }
 
@@ -354,10 +354,10 @@ void loop() {
         int16_t rx = (Wire.read() << 8) | Wire.read();
         int16_t ry = (Wire.read() << 8) | Wire.read();
         int16_t rz = (Wire.read() << 8) | Wire.read();
-        // Scale for +/- 8G: 4096 LSB/g
-        float ax = (float)rx / 4096.0;
-        float ay = (float)ry / 4096.0;
-        float az = (float)rz / 4096.0;
+        // Scale for +/- 16G: 2048 LSB/g
+        float ax = (float)rx / 2048.0;
+        float ay = (float)ry / 2048.0;
+        float az = (float)rz / 2048.0;
         totalG = sqrt(ax * ax + ay * ay + az * az);
       }
     }
@@ -371,7 +371,7 @@ void loop() {
     sosTransmittedToApp = true;
     crashBuzzerStartTime = millis(); // Start 30-second buzzer timer
     if (totalG > peakImpactG) peakImpactG = totalG;
-    Serial.printf("\n💥 [CRASH DETECTED] Force: %.2fG (>= 4.0G)! SOS Triggered! Buzzer active for 30s.\n", totalG);
+    Serial.printf("\n💥 [CRASH DETECTED] Force: %.2fG (>= 8.0G)! SOS Triggered! Buzzer active for 30s.\n", totalG);
   } else if (isCrashAlertActive || sosTransmittedToApp) {
     if (totalG > peakImpactG) peakImpactG = totalG;
   }

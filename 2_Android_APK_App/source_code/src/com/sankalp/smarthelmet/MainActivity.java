@@ -1,6 +1,8 @@
 package com.sankalp.smarthelmet;
 
 import android.app.Activity;
+import android.app.KeyguardManager;
+import android.view.WindowManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -95,8 +97,8 @@ public class MainActivity extends Activity implements View.OnClickListener {
     private boolean isSimulationRunning = false;
     private boolean isAuthenticated = false;
 
-    private float[] sensitivityLevels = {2.5f, 3.0f, 3.5f, 4.0f, 5.0f, 6.0f};
-    private int sensitivityIndex = 1; // default 3.0G
+    private float[] sensitivityLevels = {3.0f, 4.0f, 5.0f, 6.0f, 8.0f, 10.0f};
+    private int sensitivityIndex = 4; // default 8.0G
     private boolean isDemoDrunk = false;
 
     // Hardcoded Vercel server URL — APK always connects to this website
@@ -114,6 +116,26 @@ public class MainActivity extends Activity implements View.OnClickListener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         instance = this;
+
+        // Ensure Activity wakes up the device and displays over lock screen during emergencies
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true);
+                setTurnScreenOn(true);
+                KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+                if (km != null) {
+                    km.requestDismissKeyguard(this, null);
+                }
+            } else {
+                getWindow().addFlags(
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED |
+                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD |
+                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON |
+                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                );
+            }
+        } catch (Exception ignored) {}
+
         setContentView(R.layout.activity_main);
         setTitle("Guardian");
 
@@ -832,7 +854,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
                 String helmetStr = helmet
                     ? "🪖 HELMET: WORN (RIDER DETECTED) ✅"
                     : "⚠️ HELMET: NOT WORN (REMOVED) 🛑";
-                String alcoholStr = (alcohol >= 1000)
+                String alcoholStr = (alcohol >= 2200)
                     ? "🍺 ALCOHOL: DRUNK (" + alcohol + " ADC) 🛑"
                     : "🍺 ALCOHOL: SOBER (" + alcohol + " ADC) ✅";
                 String crashStr = crash
@@ -841,7 +863,7 @@ public class MainActivity extends Activity implements View.OnClickListener {
 
                 if (tvTelemetry != null) {
                     tvTelemetry.setText(helmetStr + "\n" + alcoholStr + "\n" + crashStr);
-                    tvTelemetry.setTextColor((alcohol >= 1000 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
+                    tvTelemetry.setTextColor((alcohol >= 2200 || crash || !helmet) ? 0xFFEF4444 : 0xFF10B981);
                 }
             } catch (Exception ignored) {}
         }

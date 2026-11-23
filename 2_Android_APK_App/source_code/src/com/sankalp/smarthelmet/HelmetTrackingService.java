@@ -25,6 +25,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.telephony.SmsManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -88,17 +89,30 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     }
 
     private String serverUrl = "https://sanrakshan-eight.vercel.app";
-    private float sensitivityThresholdG = 3.0f;
+    private float sensitivityThresholdG = 8.0f;
     private boolean isCrashTriggered = false;
     private long lastCrashSosTimestamp = 0;
     private long lastTelemetryPostTime = 0;
+    private PowerManager.WakeLock partialWakeLock;
 
     @Override
     public void onCreate() {
         super.onCreate();
         SharedPreferences prefs = getSharedPreferences("SmartHelmetPrefs", Context.MODE_PRIVATE);
         serverUrl = prefs.getString("SERVER_URL", "https://sanrakshan-eight.vercel.app");
-        sensitivityThresholdG = prefs.getFloat("SENSITIVITY_G", 3.0f);
+        sensitivityThresholdG = prefs.getFloat("SENSITIVITY_G", 8.0f);
+
+        // Acquire partial wake lock to keep background CPU running and prevent BLE freeze when phone is locked
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                partialWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Guardian:TrackingWakeLock");
+                partialWakeLock.acquire();
+                Log.i(TAG, "🔒 Partial WakeLock acquired — CPU active when screen locked");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "WakeLock init error: " + e.getMessage());
+        }
 
         // Load persisted real coordinates if available
         try {
@@ -196,7 +210,7 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             if (intent.hasExtra("SET_ALCOHOL_ADC")) {
                 currentAlcohol = intent.getIntExtra("SET_ALCOHOL_ADC", 380);
-                boolean isLocked = currentAlcohol >= 1000;
+                boolean isLocked = currentAlcohol >= 2200;
                 Log.i(TAG, "🍺 Breath alcohol updated to " + currentAlcohol + " ADC (Ignition " + (isLocked ? "LOCKED" : "UNLOCKED") + ")");
                 dispatchTelemetryToServer(false);
             }
@@ -702,6 +716,22 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
     private void handleCrashImpact(double peakG) {
         isCrashTriggered = true;
+        // Wake up screen immediately even if phone is locked
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                PowerManager.WakeLock screenWake = pm.newWakeLock(
+                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                    PowerManager.ACQUIRE_CAUSES_WAKEUP |
+                    PowerManager.ON_AFTER_RELEASE,
+                    "Guardian:CrashWakeUpScreen"
+                );
+                screenWake.acquire(20000L); // 20s screen wake
+                Log.i(TAG, "💡 Screen turned ON for crash emergency alert");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Crash screen wakeup error: " + e.getMessage());
+        }
         triggerEmergencySosSequence(String.format(Locale.US, "HIGH_IMPACT_CRASH (%.1fG >= %.1fG)", peakG, sensitivityThresholdG), peakG);
     }
 
@@ -735,6 +765,9 @@ public class HelmetTrackingService extends Service implements LocationListener, 
                          " (Age:" + rider.age + ", Blood:" + rider.bloodGroup + ", Bike:" + rider.vehicleNumber + ")" +
                          " accident at " + latStr + "," + lngStr + 
                          " Map: " + mapsUrl;
+
+        // Post crash event directly to web server /api/sos-history
+        postSosEventToServer(rider, gForce, currentLat, currentLng);
 
         // 1. Send SMS to ALL configured Emergency Contacts
         SmsManager smsManager = null;
@@ -814,6 +847,45 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         } catch (Exception ignored) {}
     }
 
+    private void postSosEventToServer(RiderProfile rider, double gForce, double lat, double lng) {
+        new Thread(() -> {
+            try {
+                String targetUrl = serverUrl + "/api/sos-history";
+                java.net.URL url = new java.net.URL(targetUrl);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json; utf-8");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(6000);
+                conn.setReadTimeout(6000);
+
+                JSONObject root = new JSONObject();
+                root.put("id", "CRASH-" + System.currentTimeMillis());
+                root.put("timestamp", System.currentTimeMillis());
+                root.put("type", "CRASH_IMPACT");
+                JSONObject loc = new JSONObject();
+                loc.put("latitude", lat);
+                loc.put("longitude", lng);
+                root.put("location", loc);
+                root.put("gForce", gForce);
+                root.put("vehicleNumber", rider != null ? rider.vehicleNumber : "MH-12-AB-1234");
+                root.put("riderName", rider != null ? rider.riderName : "Rider");
+                root.put("status", "DISPATCHED_SMS_AND_CALLS");
+
+                byte[] input = root.toString().getBytes("utf-8");
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    os.write(input, 0, input.length);
+                }
+                int code = conn.getResponseCode();
+                Log.i(TAG, "📡 SOS crash event posted to /api/sos-history -> Code " + code);
+                conn.disconnect();
+            } catch (Exception e) {
+                Log.w(TAG, "Could not post to /api/sos-history: " + e.getMessage());
+            }
+        }).start();
+    }
+
     private void dispatchTelemetryToServer(boolean isCrash) {
         if (serverUrl == null || serverUrl.trim().isEmpty()) return;
 
@@ -850,13 +922,13 @@ public class HelmetTrackingService extends Service implements LocationListener, 
 
             JSONObject sens = new JSONObject();
             // Ignition relay is strictly OFF unless motor running is explicitly confirmed:
-            // Helmet must be worn, alcohol sober, no crash, and BLE connected!
-            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 1000) && !isCrash;
+            // Helmet must be worn, alcohol sober (< 2200 ADC), no crash, and BLE connected!
+            boolean isIgnitionActive = isBleConnected && isHelmetWorn && (currentAlcohol < 2200) && !isCrash;
             sens.put("bleConnected", isBleConnected);
             sens.put("helmetWorn", isBleConnected && isHelmetWorn);
             sens.put("alcoholAdc", isBleConnected ? currentAlcohol : 0);
             sens.put("alcoholStatus", isBleConnected 
-                ? (currentAlcohol >= 1000 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
+                ? (currentAlcohol >= 2200 ? "DRUNK / ENGINE LOCKED" : "SAFE / SOBER")
                 : "AWAITING HELMET BLE CONNECTION");
             sens.put("totalG", isBleConnected ? currentGForce : 1.0);
             sens.put("gForceX", isBleConnected ? 0.1 : 0.0);
@@ -896,6 +968,9 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     public void onDestroy() {
         super.onDestroy();
         try {
+            if (partialWakeLock != null && partialWakeLock.isHeld()) {
+                try { partialWakeLock.release(); } catch (Exception ignored) {}
+            }
             unregisterBluetoothStateReceiver();
             stopActiveGattPolling();
             isSimulationActive = false;
