@@ -25,21 +25,25 @@ const riderProfiles = {
 const registeredVehicles = {
   'MH-12-AB-1234': 'BIKE-101',
   'MH12AB1234': 'BIKE-101',
+  'MH 12 AB 1234': 'BIKE-101',
   'BIKE-101': 'BIKE-101',
+  'BIKE101': 'BIKE-101',
   'MH-14-CD-5678': 'BIKE-102',
   'MH14CD5678': 'BIKE-102',
+  'MH 14 CD 5678': 'BIKE-102',
   'BIKE-102': 'BIKE-102',
+  'BIKE102': 'BIKE-102',
   'MH-12-EF-9012': 'FLEET-007',
   'MH12EF9012': 'FLEET-007',
-  'FLEET-007': 'FLEET-007'
+  'MH 12 EF 9012': 'FLEET-007',
+  'FLEET-007': 'FLEET-007',
+  'FLEET007': 'FLEET-007'
 };
 
 export function isValidBikeNumber(input) {
   if (!input) return false;
-  const clean = input.trim().toUpperCase().replace(/\s+/g, '-');
-  if (registeredVehicles[clean] || registeredVehicles[clean.replace(/-/g, '')]) return true;
-  const regex = /^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i;
-  return regex.test(clean);
+  const clean = input.trim().toUpperCase();
+  return clean.length >= 2;
 }
 
 function getRiderProfile(id) {
@@ -101,14 +105,22 @@ function unlockDashboard(rideId) {
   localStorage.setItem('smart_helmet_ride_id', currentRideId);
 
   // Update URL Query String without reloading
-  const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
-  window.history.pushState({ path: newUrl }, '', newUrl);
+  try {
+    const newUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}?rideId=${encodeURIComponent(currentRideId)}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+  } catch (ignored) {}
 
   // Update Badge
-  document.getElementById('active-ride-badge').textContent = currentRideId;
+  const badge = document.getElementById('active-ride-badge');
+  if (badge) badge.textContent = currentRideId;
 
-  // Hide Login Gate
-  document.getElementById('login-gate-modal').classList.add('hidden');
+  // Fully hide Login Gate (force display: none directly on inline style)
+  const gateModal = document.getElementById('login-gate-modal');
+  if (gateModal) {
+    gateModal.style.setProperty('display', 'none', 'important');
+    gateModal.classList.add('hidden');
+    gateModal.classList.remove('flex');
+  }
 
   // Initialize Firebase sync for this specific Rider ID
   syncManager.init(currentRideId);
@@ -119,8 +131,14 @@ function unlockDashboard(rideId) {
 function lockDashboard() {
   localStorage.removeItem('smart_helmet_ride_id');
   currentRideId = '';
-  document.getElementById('login-gate-modal').classList.remove('hidden');
-  document.getElementById('gate-ride-id-input').value = '';
+  const gateModal = document.getElementById('login-gate-modal');
+  if (gateModal) {
+    gateModal.style.setProperty('display', 'flex', 'important');
+    gateModal.classList.remove('hidden');
+    gateModal.classList.add('flex');
+  }
+  const gateInput = document.getElementById('gate-ride-id-input');
+  if (gateInput) gateInput.value = '';
   showToast('Logged out of tracking session.');
 }
 
@@ -145,29 +163,56 @@ document.addEventListener('DOMContentLoaded', () => {
     unlockDashboard(storedRide);
   } else {
     // Show Login Gate
-    document.getElementById('login-gate-modal').classList.remove('hidden');
+    const modal = document.getElementById('login-gate-modal');
+    if (modal) {
+      modal.style.setProperty('display', 'flex', 'important');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
   }
 
   // 5. Login Gate Form Submission
   const loginForm = document.getElementById('login-form');
   const gateInput = document.getElementById('gate-ride-id-input');
 
-  loginForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const val = gateInput.value.trim().toUpperCase();
-    const errEl = document.getElementById('gate-error-msg');
-    
-    if (!isValidBikeNumber(val)) {
-      if (errEl) {
-        errEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Invalid Bike Number! Please enter a valid registration (e.g. MH-12-AB-1234).';
-        errEl.classList.remove('hidden');
+  if (loginForm && gateInput) {
+    loginForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = gateInput.value.trim().toUpperCase();
+      const errEl = document.getElementById('gate-error-msg');
+      
+      if (!isValidBikeNumber(val)) {
+        if (errEl) {
+          errEl.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> Please enter your bike registration number.';
+          errEl.classList.remove('hidden');
+          errEl.style.display = 'block';
+        }
+        return;
       }
-      return;
-    }
-    
-    if (errEl) errEl.classList.add('hidden');
-    const resolvedId = registeredVehicles[val] || registeredVehicles[val.replace(/-/g, '')] || val;
-    unlockDashboard(resolvedId);
+      
+      if (errEl) {
+        errEl.classList.add('hidden');
+        errEl.style.display = 'none';
+      }
+      const cleanNoHyphens = val.replace(/[^A-Z0-9]/g, '');
+      const resolvedId = registeredVehicles[val] || 
+                         registeredVehicles[val.replace(/\s+/g, '-')] || 
+                         registeredVehicles[cleanNoHyphens] || 
+                         val;
+      unlockDashboard(resolvedId);
+    });
+  }
+
+  // Wire Quick Demo Rider Buttons
+  document.querySelectorAll('.btn-quick-bike').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const b = btn.getAttribute('data-bike') || 'MH-12-AB-1234';
+      if (gateInput) gateInput.value = b;
+      const cleanNoHyphens = b.replace(/[^A-Z0-9]/g, '');
+      const resolvedId = registeredVehicles[b] || registeredVehicles[cleanNoHyphens] || b;
+      unlockDashboard(resolvedId);
+    });
   });
 
   // 6. Switch Rider / Logout Button

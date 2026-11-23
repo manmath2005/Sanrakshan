@@ -6,21 +6,25 @@
 const registeredVehicles = {
   'MH-12-AB-1234': 'BIKE-101',
   'MH12AB1234': 'BIKE-101',
+  'MH 12 AB 1234': 'BIKE-101',
   'BIKE-101': 'BIKE-101',
+  'BIKE101': 'BIKE-101',
   'MH-14-CD-5678': 'BIKE-102',
   'MH14CD5678': 'BIKE-102',
+  'MH 14 CD 5678': 'BIKE-102',
   'BIKE-102': 'BIKE-102',
+  'BIKE102': 'BIKE-102',
   'MH-12-EF-9012': 'FLEET-007',
   'MH12EF9012': 'FLEET-007',
-  'FLEET-007': 'FLEET-007'
+  'MH 12 EF 9012': 'FLEET-007',
+  'FLEET-007': 'FLEET-007',
+  'FLEET007': 'FLEET-007'
 };
 
 export function isValidBikeNumber(input) {
   if (!input) return false;
-  const clean = input.trim().toUpperCase().replace(/\s+/g, '-');
-  if (registeredVehicles[clean] || registeredVehicles[clean.replace(/-/g, '')]) return true;
-  const regex = /^[A-Z]{2}[ -]?[0-9]{1,2}[ -]?[A-Z]{1,3}[ -]?[0-9]{4}$/i;
-  return regex.test(clean);
+  const clean = input.trim().toUpperCase();
+  return clean.length >= 2;
 }
 
 export function initAuthGuard(pageName = 'Portal') {
@@ -113,9 +117,14 @@ function showAuthModal(pageName) {
       err.style.display = 'block';
       return;
     }
-    const resolved = registeredVehicles[val] || registeredVehicles[val.replace(/-/g, '')] || val;
+    const cleanNoHyphens = val.replace(/[^A-Z0-9]/g, '');
+    const resolved = registeredVehicles[val] || 
+                     registeredVehicles[val.replace(/\s+/g, '-')] || 
+                     registeredVehicles[cleanNoHyphens] || 
+                     val;
     localStorage.setItem('smart_helmet_ride_id', resolved);
-    modal.style.display = 'none';
+    modal.style.setProperty('display', 'none', 'important');
+    modal.classList.add('hidden');
     updateActiveBikeBadge(resolved);
   });
 }
