@@ -4,7 +4,7 @@
  * Free Leaflet OpenStreetMap Engine, Remote Sensitivity Sliders & Emergency SOS.
  */
 
-import { initMap, updateRiderLocation, centerOnRider, toggleTrail, switchBasemap, toggleTraffic } from './map-tracker.js';
+import { initMap, updateRiderLocation, centerOnRider, toggleTrail, switchBasemap, toggleTraffic, resizeMap } from './map-tracker.js';
 import { updateTelemetry, renderSosHistoryList } from './telemetry-hud.js';
 import { triggerEmergencyAlert, dismissEmergencyAlert } from './safety-controls.js';
 import { syncManager } from './firebase-sync.js';
@@ -79,8 +79,8 @@ function handleIncomingTelemetry(telemetry, riderInfo) {
   const loc = telemetry.location || {};
   const isEmergency = Boolean(telemetry.alerts && (telemetry.alerts.isCrashDetected || telemetry.alerts.isManualSosActive));
 
-  // 1. Update Map - only if real mobile GPS is active and fixed
-  if (loc.latitude && loc.longitude && loc.isRealGps !== false) {
+  // 1. Update Map - whenever valid mobile coordinates are received
+  if (loc.latitude && loc.longitude) {
     updateRiderLocation(loc.latitude, loc.longitude, loc.heading, loc.accuracyMeters, loc.speedKmph, isEmergency);
   }
 
@@ -125,6 +125,11 @@ export function unlockDashboard(rideId) {
 
   // Initialize Firebase sync for this specific Rider ID
   syncManager.init(currentRideId);
+
+  // Recalculate map dimensions now that the access modal is dismissed
+  setTimeout(() => {
+    resizeMap();
+  }, 100);
 
   showToast(`Unlocked live tracking for ${currentRideId}`);
 }

@@ -103,10 +103,17 @@ export function updateTelemetry(telemetry, riderProfile) {
   }
 
   const mapCoordsText = document.getElementById('map-coords-text');
-  // ONLY show coordinates when a real GPS fix is confirmed (isRealGps=true from phone hardware GPS)
+  const mapAccuracyText = document.getElementById('map-accuracy-text');
   if (mapCoordsText) {
-    if (loc.isRealGps === true && loc.latitude && loc.longitude) {
-      mapCoordsText.textContent = `${loc.latitude.toFixed(5)}° N, ${loc.longitude.toFixed(5)}° E`;
+    if (loc.latitude && loc.longitude) {
+      mapCoordsText.textContent = `${Number(loc.latitude).toFixed(5)}° N, ${Number(loc.longitude).toFixed(5)}° E`;
+      if (mapAccuracyText) {
+        if (loc.isRealGps === true) {
+          mapAccuracyText.innerHTML = `<i class="fa-solid fa-satellite text-emerald-400 text-[10px]"></i> GPS Accuracy: ±${Math.round(loc.accuracyMeters || 3.5)}m`;
+        } else {
+          mapAccuracyText.innerHTML = `<i class="fa-solid fa-tower-broadcast text-cyan-400 text-[10px]"></i> Cellular / Network Fix: ±${Math.round(loc.accuracyMeters || 12)}m`;
+        }
+      }
     } else {
       mapCoordsText.textContent = 'Awaiting Mobile GPS Fix...';
     }

@@ -69,11 +69,16 @@ class RealtimeSyncManager {
         const badge = document.getElementById('cloud-status-badge');
         const badgeText = document.getElementById('cloud-status-text');
 
-        if (json.hasData && json.isLive && json.telemetry) {
+        if (json.hasData && json.telemetry) {
           const t = json.telemetry;
           if (badge && badgeText) {
-            badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium';
-            badgeText.textContent = 'Hardware Live Stream (<50ms)';
+            if (json.isLive) {
+              badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium';
+              badgeText.textContent = 'Hardware Live Stream (<50ms)';
+            } else {
+              badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-xs font-medium';
+              badgeText.textContent = 'Hardware Stream (Buffered)';
+            }
           }
           this.listeners.forEach(cb => cb(t, {
             riderName: t.riderName || 'Manmath',
@@ -90,7 +95,6 @@ class RealtimeSyncManager {
             badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-medium';
             badgeText.textContent = 'Standby (Awaiting BLE/GPS Signal)';
           }
-          this.listeners.forEach(cb => cb(null, null));
         }
       }
     } catch (e) {

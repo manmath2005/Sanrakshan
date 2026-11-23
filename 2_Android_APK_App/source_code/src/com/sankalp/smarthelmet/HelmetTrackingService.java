@@ -95,6 +95,28 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     private long lastTelemetryPostTime = 0;
     private PowerManager.WakeLock partialWakeLock;
 
+    private Handler heartbeatHandler;
+    private HeartbeatTask heartbeatRunnable;
+
+    private static class HeartbeatTask implements Runnable {
+        private final java.lang.ref.WeakReference<HelmetTrackingService> serviceRef;
+        public HeartbeatTask(HelmetTrackingService service) {
+            this.serviceRef = new java.lang.ref.WeakReference<>(service);
+        }
+        @Override
+        public void run() {
+            HelmetTrackingService svc = serviceRef.get();
+            if (svc != null) {
+                try {
+                    svc.dispatchTelemetryToServer(svc.isCrashTriggered);
+                } catch (Exception ignored) {}
+                if (svc.heartbeatHandler != null && svc.heartbeatRunnable != null) {
+                    svc.heartbeatHandler.postDelayed(this, 1800);
+                }
+            }
+        }
+    }
+
     @Override
     public void onCreate() {
         super.onCreate();
@@ -163,6 +185,10 @@ public class HelmetTrackingService extends Service implements LocationListener, 
         initBluetoothLE();
         initSensors();
         registerBluetoothStateReceiver();
+
+        heartbeatHandler = new Handler(Looper.getMainLooper());
+        heartbeatRunnable = new HeartbeatTask(this);
+        heartbeatHandler.postDelayed(heartbeatRunnable, 1000);
     }
 
     @Override
@@ -968,6 +994,10 @@ public class HelmetTrackingService extends Service implements LocationListener, 
     public void onDestroy() {
         super.onDestroy();
         try {
+            if (heartbeatHandler != null) {
+                heartbeatHandler.removeCallbacks(heartbeatRunnable);
+                heartbeatHandler = null;
+            }
             if (partialWakeLock != null && partialWakeLock.isHeld()) {
                 try { partialWakeLock.release(); } catch (Exception ignored) {}
             }

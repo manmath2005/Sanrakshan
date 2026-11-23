@@ -70,7 +70,7 @@ const LEAFLET_PROVIDERS = {
 };
 
 /**
- * Initialize Map Engine (tries Google Maps, falls back to Leaflet automatically)
+ * Initialize Map Engine (Defaults to Ultra-Reliable Leaflet Satellite Engine)
  */
 export function initMap(containerId = 'map', initialLat = 18.4529, initialLng = 73.8553) {
   const container = document.getElementById(containerId);
@@ -79,29 +79,30 @@ export function initMap(containerId = 'map', initialLat = 18.4529, initialLng = 
   lastLat = initialLat;
   lastLng = initialLng;
 
-  // Global Auth Failure listener for Google Maps
-  window.gm_authFailure = () => {
-    console.warn('[MapTracker] Google Maps Auth issue detected. Switching to Leaflet Satellite Engine...');
-    initLeafletEngine(container, initialLat, initialLng);
-  };
-
-  // 1. Try Google Maps if available and loaded
-  if (window.google && window.google.maps && window.google.maps.Map) {
-    try {
-      initGoogleMapEngine(container, initialLat, initialLng);
-      activeEngine = 'google';
-      console.log('[MapTracker] Initialized with Google Maps Engine');
-      return gMapInstance;
-    } catch (e) {
-      console.warn('[MapTracker] Google Maps init error, falling back to Leaflet:', e);
-    }
-  }
-
-  // 2. Fallback to Leaflet OpenStreetMap & Satellite
+  // Primary: Ultra-Reliable High-Definition Leaflet Engine (Esri Satellite HD, Dark Matter, OpenStreetMap)
   initLeafletEngine(container, initialLat, initialLng);
   activeEngine = 'leaflet';
-  console.log('[MapTracker] Initialized with Leaflet Satellite Fallback Engine');
+  console.log('[MapTracker] Initialized with Leaflet Satellite HD Engine');
+
+  // Force Leaflet to compute container dimensions cleanly
+  setTimeout(() => {
+    if (lMapInstance) lMapInstance.invalidateSize();
+  }, 250);
+
+  // Recalculate on window resize
+  window.addEventListener('resize', () => {
+    if (lMapInstance) lMapInstance.invalidateSize();
+  });
+
   return lMapInstance;
+}
+
+export function resizeMap() {
+  if (lMapInstance) {
+    try {
+      lMapInstance.invalidateSize();
+    } catch(e) {}
+  }
 }
 
 function initGoogleMapEngine(container, lat, lng) {
@@ -109,22 +110,11 @@ function initGoogleMapEngine(container, lat, lng) {
 
   gMapInstance = new google.maps.Map(container, {
     center: centerLatLng,
-    zoom: 16,
-    maxZoom: 17,
-    minZoom: 3,
+    zoom: 17,
     mapTypeId: google.maps.MapTypeId.HYBRID,
     disableDefaultUI: true,
     zoomControl: true,
     zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_TOP }
-  });
-
-  // Guard against zooming into missing satellite imagery levels ("Sorry, we have no imagery here")
-  gMapInstance.addListener('zoom_changed', () => {
-    const currentZoom = gMapInstance.getZoom();
-    const type = gMapInstance.getMapTypeId();
-    if ((type === google.maps.MapTypeId.HYBRID || type === google.maps.MapTypeId.SATELLITE) && currentZoom > 17) {
-      gMapInstance.setZoom(17);
-    }
   });
 
   gTrafficLayer = new google.maps.TrafficLayer();
@@ -216,6 +206,17 @@ function initLeafletEngine(container, lat, lng) {
   if (!window.L) {
     console.error('[MapTracker] Leaflet library not found on page');
     return;
+  }
+
+  // Safely destroy any existing Leaflet instance on this container
+  if (lMapInstance) {
+    try {
+      lMapInstance.remove();
+    } catch(e) {}
+    lMapInstance = null;
+  }
+  if (container._leaflet_id) {
+    delete container._leaflet_id;
   }
 
   // Clear existing container content
@@ -353,11 +354,9 @@ export function centerOnRider() {
   isAutoFollow = true;
   if (activeEngine === 'google' && gMapInstance) {
     gMapInstance.panTo({ lat: lastLat, lng: lastLng });
-    const currentType = gMapInstance.getMapTypeId();
-    const targetZoom = (currentType === google.maps.MapTypeId.HYBRID || currentType === google.maps.MapTypeId.SATELLITE) ? 17 : 18;
-    gMapInstance.setZoom(targetZoom);
+    gMapInstance.setZoom(18);
   } else if (activeEngine === 'leaflet' && lMapInstance) {
-    lMapInstance.setView([lastLat, lastLng], 17);
+    lMapInstance.setView([lastLat, lastLng], 18);
   }
 }
 
@@ -370,18 +369,16 @@ export function switchBasemap(style = 'satellite') {
   if (activeEngine === 'google' && gMapInstance) {
     if (style === 'satellite') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.HYBRID);
-      gMapInstance.setOptions({ styles: [], maxZoom: 17 });
-      if (gMapInstance.getZoom() > 17) gMapInstance.setZoom(17);
+      gMapInstance.setOptions({ styles: [] });
     } else if (style === 'dark') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.ROADMAP);
-      gMapInstance.setOptions({ styles: GOOGLE_DARK_STYLE, maxZoom: 20 });
+      gMapInstance.setOptions({ styles: GOOGLE_DARK_STYLE });
     } else if (style === 'roadmap') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.ROADMAP);
-      gMapInstance.setOptions({ styles: [], maxZoom: 20 });
+      gMapInstance.setOptions({ styles: [] });
     } else if (style === 'terrain') {
       gMapInstance.setMapTypeId(google.maps.MapTypeId.TERRAIN);
-      gMapInstance.setOptions({ styles: [], maxZoom: 16 });
-      if (gMapInstance.getZoom() > 16) gMapInstance.setZoom(16);
+      gMapInstance.setOptions({ styles: [] });
     }
   }
 
